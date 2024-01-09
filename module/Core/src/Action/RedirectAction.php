@@ -12,12 +12,14 @@ use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlRedirectionBuilderInterface;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlResolverInterface;
 use Shlinkio\Shlink\Core\Util\RedirectResponseHelperInterface;
 use Shlinkio\Shlink\Core\Visit\RequestTrackerInterface;
+use Psr\Log\LoggerInterface;
 
 class RedirectAction extends AbstractTrackingAction implements StatusCodeInterface
 {
     public function __construct(
         ShortUrlResolverInterface $urlResolver,
         RequestTrackerInterface $requestTracker,
+        protected LoggerInterface $logger,
         private ShortUrlRedirectionBuilderInterface $redirectionBuilder,
         private RedirectResponseHelperInterface $redirectResponseHelper,
     ) {
@@ -26,6 +28,9 @@ class RedirectAction extends AbstractTrackingAction implements StatusCodeInterfa
 
     protected function createSuccessResp(ShortUrl $shortUrl, ServerRequestInterface $request): Response
     {
+        $this->logger->info('REQUEST!!', [
+            'data' => $request
+        ]);
         $longUrl = $this->redirectionBuilder->buildShortUrlRedirect($shortUrl, $request->getQueryParams());
         return $this->redirectResponseHelper->buildRedirectResponse($longUrl);
     }
