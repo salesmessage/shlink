@@ -66,15 +66,7 @@ final class ShortUrlIdentifier
         if ($originalDomain) {
             return $originalDomain;
         }
-        if ('qa-shortener.salesmsgdev.com' === $domain) {
-            $domain = 'salesmsgdev.com';
-        }
-        if ('shortener.smsg.app' === $domain) {
-            $domain = 'smsg.app';
-        }
-        if ('shortener.salesmsg.io' === $domain) {
-            $domain = 'salesmsg.io';
-        }
+
         return $domain;
     }
 }
