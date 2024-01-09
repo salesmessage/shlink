@@ -28,7 +28,7 @@ final class ShortUrlIdentifier
     {
         $shortCode = $request->getAttribute('shortCode', '');
         $domain = $request->getUri()->getAuthority();
-        $originalDomain = $request->query->get('originalDomain');
+        $originalDomain = $request->getAttribute('originalDomain');
         $domain = self::overrideDomain($domain, $originalDomain);
 
         return new self($shortCode, $domain);
