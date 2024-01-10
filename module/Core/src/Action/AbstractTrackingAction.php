@@ -15,6 +15,7 @@ use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlIdentifier;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlResolverInterface;
 use Shlinkio\Shlink\Core\Visit\RequestTrackerInterface;
+use Psr\Log\LoggerInterface;
 
 abstract class AbstractTrackingAction implements MiddlewareInterface, RequestMethodInterface
 {
@@ -24,8 +25,11 @@ abstract class AbstractTrackingAction implements MiddlewareInterface, RequestMet
     ) {
     }
 
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler, LoggerInterface $logger): ResponseInterface
     {
+        $logger->info('REQUEST!!!', [
+            'data' => $request,
+        ]);
         $identifier = ShortUrlIdentifier::fromRedirectRequest($request);
 
         try {
