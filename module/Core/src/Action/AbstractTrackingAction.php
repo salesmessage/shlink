@@ -28,7 +28,7 @@ abstract class AbstractTrackingAction implements MiddlewareInterface, RequestMet
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $logger = new Logger('logger');
+        $logger = new Logger('default');
         $logger->pushHandler(new StreamHandler(__DIR__ . '/app.log', Logger::DEBUG));
         $logger->info('REQUEST!!!', [
             'data' => $request
