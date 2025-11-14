@@ -24,6 +24,13 @@ if [ ! -z "${GEOLITE_LICENSE_KEY}" ] && [ "${SKIP_INITIAL_GEOLITE_DOWNLOAD}" != 
   php bin/cli visit:download-db -n ${flags}
 fi
 
+# Periodically run visit:download-db -q every week, if ENABLE_PERIODIC_GEOLITE_DB_DOWNLOAD=true was provided
+if [ "${ENABLE_PERIODIC_GEOLITE_DB_DOWNLOAD}" = "true" ]; then
+  echo "Downloading geolite db..."
+  echo "0 2 * * 0 php /etc/shlink/bin/cli visit:download-db -q" > /etc/crontabs/root
+  /usr/sbin/crond &
+fi
+
 # Periodically run visit:locate every hour, if ENABLE_PERIODIC_VISIT_LOCATE=true was provided
 if [ "${ENABLE_PERIODIC_VISIT_LOCATE}" = "true" ]; then
   echo "Configuring periodic visit location..."
