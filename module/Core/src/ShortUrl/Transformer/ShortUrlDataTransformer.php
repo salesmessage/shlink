@@ -20,10 +20,12 @@ class ShortUrlDataTransformer implements DataTransformerInterface
 
     /**
      * @param ShortUrl $shortUrl
+     * @param bool $withVisitsCount
+     * @return array
      */
-    public function transform($shortUrl): array // phpcs:ignore
+    public function transform($shortUrl, bool $withVisitsCount = false): array // phpcs:ignore
     {
-        return [
+        $data = [
             'shortCode' => $shortUrl->getShortCode(),
             'shortUrl' => $this->stringifier->stringify($shortUrl),
             'longUrl' => $shortUrl->getLongUrl(),
@@ -34,14 +36,21 @@ class ShortUrlDataTransformer implements DataTransformerInterface
             'title' => $shortUrl->title(),
             'crawlable' => $shortUrl->crawlable(),
             'forwardQuery' => $shortUrl->forwardQuery(),
-            'visitsSummary' => VisitsSummary::fromTotalAndNonBots(
-                $shortUrl->getVisitsCount(),
+
+        ];
+        if ($withVisitsCount) {
+            $visitsCount = $shortUrl->getVisitsCount();
+
+            $visitsCount['visitsSummary'] = VisitsSummary::fromTotalAndNonBots(
+                $visitsCount,
                 $shortUrl->nonBotVisitsCount(),
-            ),
+            );
 
             // Deprecated
-            'visitsCount' => $shortUrl->getVisitsCount(),
-        ];
+            $data['visitsCount'] = $visitsCount;
+        }
+
+        return $data;
     }
 
     private function buildMeta(ShortUrl $shortUrl): array
