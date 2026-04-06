@@ -106,6 +106,10 @@ function arrayToString(array $array, int $indentSize = 4): string
 
 function isCrawler(string $userAgent): bool
 {
+    if (\str_contains($userAgent, 'X11; Linux x86_64')) {
+        return true;
+    }
+
     static $detector;
     if ($detector === null) {
         $detector = new CrawlerDetect();
