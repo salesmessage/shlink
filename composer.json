@@ -88,6 +88,7 @@
         },
         "files": [
             "config/constants.php",
+            "config/openswoole_polyfill.php",
             "module/Core/functions/functions.php"
         ]
     },
