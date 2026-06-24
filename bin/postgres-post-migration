@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+
+// Convenience entry point for the one-time MySQL-to-Postgres (AWS DMS) post-migration cleanup.
+// Resets Postgres id sequences and runs ANALYZE.
+// Equivalent to: bin/cli db:postgres:post-migration [--skip-sequences] [--skip-analyze]
+
+$argv = $_SERVER['argv'] ?? [];
+// Inject the command name right after the script name, so any flags passed to this script are forwarded.
+array_splice($argv, 1, 0, ['db:postgres:post-migration']);
+$_SERVER['argv'] = $argv;
+
+/** @var Application $app */
+$app = require __DIR__ . '/../config/cli-app.php';
+$app->run(new ArgvInput($argv));
