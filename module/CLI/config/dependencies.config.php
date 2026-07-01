@@ -60,6 +60,7 @@ return [
 
             Command\Db\CreateDatabaseCommand::class => ConfigAbstractFactory::class,
             Command\Db\MigrateDatabaseCommand::class => ConfigAbstractFactory::class,
+            Command\Db\PostMigrationCommand::class => ConfigAbstractFactory::class,
 
             Command\Domain\ListDomainsCommand::class => ConfigAbstractFactory::class,
             Command\Domain\DomainRedirectsCommand::class => ConfigAbstractFactory::class,
@@ -125,6 +126,9 @@ return [
             LockFactory::class,
             Util\ProcessRunner::class,
             PhpExecutableFinder::class,
+        ],
+        Command\Db\PostMigrationCommand::class => [
+            Connection::class,
         ],
 
         Command\Import\DataImportCommand::class => ['em'],
