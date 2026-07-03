@@ -34,7 +34,6 @@ return [
 
             Command\Db\CreateDatabaseCommand::NAME => Command\Db\CreateDatabaseCommand::class,
             Command\Db\MigrateDatabaseCommand::NAME => Command\Db\MigrateDatabaseCommand::class,
-            Command\Db\PostMigrationCommand::NAME => Command\Db\PostMigrationCommand::class,
 
             Command\Import\DataImportCommand::NAME => Command\Import\DataImportCommand::class,
         ],
