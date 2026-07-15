@@ -70,24 +70,27 @@ class PostMigrationCommand extends Command
     private function resetSequences(SymfonyStyle $io): void
     {
         $sequences = $this->conn->executeQuery(<<<'SQL'
-            SELECT
-                c.relname AS table_name,
-                a.attname AS column_name,
-                pg_get_serial_sequence(
-                    quote_ident(n.nspname) || '.' || quote_ident(c.relname),
-                    a.attname
-                ) AS sequence_name
-            FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            JOIN pg_attribute a ON a.attrelid = c.oid
-            WHERE c.relkind = 'r'
-              AND n.nspname = current_schema()
-              AND a.attnum > 0
-              AND NOT a.attisdropped
-              AND pg_get_serial_sequence(
-                    quote_ident(n.nspname) || '.' || quote_ident(c.relname),
-                    a.attname
-                ) IS NOT NULL
+            WITH serial_columns AS (
+                SELECT
+                    c.relname AS table_name,
+                    a.attname AS column_name,
+                    pg_get_serial_sequence(
+                        quote_ident(n.nspname) || '.' || quote_ident(c.relname),
+                        a.attname
+                    ) AS sequence_name
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                JOIN pg_attribute a ON a.attrelid = c.oid
+                WHERE c.relkind = 'r'
+                  AND n.nspname = current_schema()
+                  AND a.attnum > 0
+                  AND NOT a.attisdropped
+                  AND has_table_privilege(c.oid, 'SELECT')
+            )
+            SELECT table_name, column_name, sequence_name
+            FROM serial_columns
+            WHERE sequence_name IS NOT NULL
+              AND has_sequence_privilege(sequence_name, 'UPDATE')
         SQL)->fetchAllAssociative();
 
         foreach ($sequences as $sequence) {
@@ -105,7 +108,12 @@ class PostMigrationCommand extends Command
                 $this->conn->executeStatement('SELECT setval(?, ?, true)', [$sequenceName, $max]);
             }
 
-            $io->writeln(sprintf('Sequence <info>%s</info> set to %s.', $sequenceName, $max ?? 1));
+            $io->writeln(sprintf(
+                'Table %s: sequence <info>%s</info> set to %s.',
+                $sequence['table_name'],
+                $sequenceName,
+                $max ?? 1,
+            ));
         }
     }
 
@@ -114,7 +122,20 @@ class PostMigrationCommand extends Command
      */
     private function analyze(SymfonyStyle $io): void
     {
-        $this->conn->executeStatement('ANALYZE');
-        $io->writeln('<info>ANALYZE</info> completed.');
+        $tables = $this->conn->executeQuery(<<<'SQL'
+            SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname) AS qualified_name
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind IN ('r', 'p', 'm')
+              AND n.nspname = current_schema()
+              AND pg_has_role(c.relowner, 'MEMBER')
+        SQL)->fetchAllAssociative();
+
+        foreach ($tables as $table) {
+            $this->conn->executeStatement('ANALYZE ' . $table['qualified_name']);
+            $io->writeln(sprintf('Analyzed table <info>%s</info>.', $table['qualified_name']));
+        }
+
+        $io->writeln(sprintf('<info>ANALYZE</info> completed for %d table(s).', count($tables)));
     }
 }
