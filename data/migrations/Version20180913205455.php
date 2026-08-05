@@ -33,8 +33,10 @@ final class Version20180913205455 extends AbstractMigration
         $st = $this->connection->executeQuery($qb->getSQL());
 
         $qb = $this->connection->createQueryBuilder();
+        // Note: the SET target column must NOT be qualified with the table alias.
+        // PostgreSQL rejects `SET v.remote_addr = ...` (SQLSTATE 42703), while MySQL tolerated it.
         $qb->update('visits', 'v')
-           ->set('v.remote_addr', ':obfuscatedAddr')
+           ->set('remote_addr', ':obfuscatedAddr')
            ->where('v.id=:id');
 
         while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
