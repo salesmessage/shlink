@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+#
+# Run shlink's unit test suite in a throwaway PHP CLI container. Nothing else
+# needs to be running - no docker-compose, no database.
+#
+#   ./indocker_test                                     composer test:unit
+#   ./indocker_test --filter DeviceClassifier           forward args to phpunit
+#   ./indocker_test module/Core/test/Visit/XTest.php    a single file
+#   ./indocker_test cs                                  phpcs, stan, swagger too
+#   ./indocker_test --raw 'composer infect:test:unit'   any command in the container
+
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+PHP_VER="${PHP_VER:-8.3}"
+IMAGE="${IMAGE:-}"
+NETWORK="${NETWORK:-}"
+ENV_FILE="${ENV_FILE:-}"
+RAW_CMD=''
+
+# Host vars that steer the suite, bound into the container only when set
+FORWARD_VARS=(APP_ENV GENERATE_COVERAGE XDEBUG_MODE COMPOSER_PROCESS_TIMEOUT)
+
+declare -A SUITES=(
+    [unit]='test:unit'
+    [unit:ci]='test:unit:ci'
+    [unit:pretty]='test:unit:pretty'
+    [infect]='infect:test:unit'
+    [ci]='ci'
+    [cs]='cs'
+    [cs:fix]='cs:fix'
+    [stan]='stan'
+    [swagger]='swagger:validate'
+)
+
+usage() {
+    cat <<EOF
+Usage: ./indocker_test [options] [target] [args...]
+
+Targets (default: unit), each one a composer script:
+
+  unit                  module/*/test                       composer test:unit
+  unit:ci               same, with coverage reports         composer test:unit:ci
+  unit:pretty           same, with an HTML coverage report  composer test:unit:pretty
+  infect                unit tests + mutation testing       composer infect:test:unit
+  cs | cs:fix | stan | swagger                              the matching script
+  ci                    everything the CI pipeline runs     composer ci
+
+Everything after the target is forwarded verbatim to the underlying command,
+so \`./indocker_test unit --filter Foo --stop-on-failure\` works. An argument
+that does not match a target name is treated as a phpunit argument for the
+unit suite. \`ci\` and \`infect\` fan out internally and ignore extra args.
+
+Options (must come before the target):
+  -p, --php VER           PHP version / image tag (default: ${PHP_VER})
+  -n, --network NAME      docker network to attach
+  -e, --env-file FILE     env file to bind into the container
+  -r, --raw 'CMD'         run CMD instead of a composer script
+  -h, --help              this text
+
+Env overrides: PHP_VER, IMAGE, NETWORK, ENV_FILE, PROJECT_USER, PROJECT_GRP.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help) usage; exit 0 ;;
+        -p|--php) PHP_VER="$2"; shift 2 ;;
+        -n|--network) NETWORK="$2"; shift 2 ;;
+        -e|--env-file) ENV_FILE="$2"; shift 2 ;;
+        -r|--raw) RAW_CMD="$2"; shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+IMAGE="${IMAGE:-sm-php-cli:${PHP_VER}}"
+
+SCRIPT='test:unit'
+if [[ $# -gt 0 && -n "${SUITES[$1]:-}" ]]; then
+    SCRIPT="${SUITES[$1]}"
+    shift
+fi
+
+if [[ -n "$RAW_CMD" ]]; then
+    CMD="$RAW_CMD"
+else
+    CMD="composer $SCRIPT"
+    if [[ $# -gt 0 ]]; then
+        CMD+=' --'
+        for arg in "$@"; do
+            CMD+=" $(printf '%q' "$arg")"
+        done
+    fi
+fi
+
+if [[ -z "$(docker images -q "$IMAGE" 2>/dev/null)" ]]; then
+    SMT_DIR="${SMT_DIR:-${PROJECT_DIR}/../sm-tool}"
+    DOCKERFILE="${SMT_DIR}/dockerfiles/sm-php-cli.Dockerfile"
+    if [[ -f "$DOCKERFILE" ]]; then
+        echo "Building $IMAGE from $DOCKERFILE"
+        docker build --build-arg "VER=${PHP_VER}" -t "$IMAGE" -f "$DOCKERFILE" "$SMT_DIR"
+    else
+        echo "Image $IMAGE not found and $DOCKERFILE is missing. Set SMT_DIR or IMAGE." >&2
+        exit 1
+    fi
+fi
+
+DOCKER_ARGS=(
+    --rm
+    -u "${PROJECT_USER:-$(id -u)}:${PROJECT_GRP:-$(id -g)}"
+    -w /app
+    -v "${PROJECT_DIR}:/app"
+    -e HOME=/tmp
+    -e COMPOSER_HOME=/tmp/composer
+    -e LC_ALL=C
+)
+
+[[ -t 0 && -t 1 ]] && DOCKER_ARGS+=(-it)
+[[ -n "$NETWORK" ]] && DOCKER_ARGS+=(--network "$NETWORK")
+
+if [[ -z "$ENV_FILE" ]]; then
+    for candidate in "${PROJECT_DIR}/.env.test.local" "${PROJECT_DIR}/.env.test"; do
+        [[ -f "$candidate" ]] && ENV_FILE="$candidate" && break
+    done
+fi
+if [[ -n "$ENV_FILE" ]]; then
+    [[ -f "$ENV_FILE" ]] || { echo "Env file not found: $ENV_FILE" >&2; exit 1; }
+    DOCKER_ARGS+=(--env-file "$ENV_FILE")
+fi
+
+for var in "${FORWARD_VARS[@]}"; do
+    [[ -n "${!var:-}" ]] && DOCKER_ARGS+=(-e "${var}=${!var}")
+done
+
+echo "> $IMAGE${NETWORK:+ [${NETWORK}]}: $CMD"
+exec docker run "${DOCKER_ARGS[@]}" "$IMAGE" bash -lc "$CMD"

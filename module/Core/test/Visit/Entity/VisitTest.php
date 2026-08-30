@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Core\Visit\Entity;
 
+use Cake\Chronos\Chronos;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Common\Util\IpAddress;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
+use Shlinkio\Shlink\Core\Visit\DeviceClassifier;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
+use Shlinkio\Shlink\Importer\Model\ImportedShlinkVisit;
+
+use function date_default_timezone_get;
+use function date_default_timezone_set;
 
 class VisitTest extends TestCase
 {
@@ -26,6 +33,10 @@ class VisitTest extends TestCase
             'userAgent' => $userAgent,
             'visitLocation' => null,
             'potentialBot' => $expectedToBePotentialBot,
+            'id' => 0,
+            'visitedUrl' => '',
+            'deviceType' => DeviceClassifier::classify($userAgent)->class->value,
+            'deviceTypeDetail' => DeviceClassifier::classify($userAgent)->detail,
         ], $visit->jsonSerialize());
     }
 
@@ -64,5 +75,119 @@ class VisitTest extends TestCase
         yield 'non-anonymized localhost' => [false, IpAddress::LOCALHOST, IpAddress::LOCALHOST];
         yield 'anonymized regular address' => [true, '1.2.3.4', '1.2.3.0'];
         yield 'non-anonymized regular address' => [false, '1.2.3.4', '1.2.3.4'];
+    }
+
+    /**
+     * @test
+     * @group spec:click-tracking:AC-14
+     */
+    public function visitFromUnrecognizedUserAgentIsClassifiedAsOther(): void
+    {
+        $visit = Visit::forValidShortUrl(
+            ShortUrl::createEmpty(),
+            new Visitor('some-internal-http-client/1.0', '', null, ''),
+        );
+
+        self::assertSame(DeviceClass::OTHER, $visit->deviceType());
+        self::assertSame(DeviceClassifier::DETAIL_UNKNOWN, $visit->deviceTypeDetail());
+    }
+
+    /**
+     * @test
+     * @dataProvider provideDeviceUserAgents
+     * @group spec:click-tracking:AC-15
+     */
+    public function serializedDeviceClassIsTheClassifiersOutputForThatUserAgent(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+        $classification = DeviceClassifier::classify($userAgent);
+        $serialized = $visit->jsonSerialize();
+
+        self::assertSame($classification->class->value, $serialized['deviceType']);
+        self::assertSame($classification->detail, $serialized['deviceTypeDetail']);
+    }
+
+    public function provideDeviceUserAgents(): iterable
+    {
+        yield 'mobile' => ['Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) Mobile/15E148 Safari/604.1'];
+        yield 'tablet' => ['Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) Version/16.6 Safari/604.1'];
+        yield 'desktop' => ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/115.0.0.0 Safari/537.36'];
+        yield 'other' => ['Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36'];
+    }
+
+    /**
+     * @test
+     * @dataProvider provideTimezones
+     * @group spec:click-tracking:AC-10
+     */
+    public function serializedDateIsUtcRegardlessOfConfiguredTimezone(string $timezone): void
+    {
+        $originalTimezone = date_default_timezone_get();
+        date_default_timezone_set($timezone);
+
+        try {
+            $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), Visitor::emptyInstance());
+            $serializedDate = $visit->jsonSerialize()['date'];
+        } finally {
+            date_default_timezone_set($originalTimezone);
+        }
+
+        self::assertStringEndsWith('+00:00', $serializedDate);
+        self::assertEquals(
+            Chronos::parse($serializedDate)->getTimestamp(),
+            $visit->getDate()->getTimestamp(),
+        );
+    }
+
+    public function provideTimezones(): iterable
+    {
+        yield 'UTC' => ['UTC'];
+        yield 'behind UTC' => ['America/New_York'];
+        yield 'ahead of UTC' => ['Europe/Kyiv'];
+    }
+
+    /**
+     * @test
+     * @dataProvider provideCrawlerUserAgents
+     * @group spec:click-tracking:AC-4
+     */
+    public function visitFromCrawlerIsSerializedAsPotentialBot(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+
+        self::assertTrue($visit->jsonSerialize()['potentialBot']);
+    }
+
+    public function provideCrawlerUserAgents(): iterable
+    {
+        yield 'Facebook' => ['cf-facebook'];
+        yield 'Twitter' => ['IDG Twitter Links Resolver'];
+        yield 'Guzzle' => ['guzzlehttp'];
+    }
+
+    /**
+     * Visits captured before the device columns were added have no class, and every consumer has to tolerate that.
+     * Ported from the database test suite, which this fork no longer runs; an imported visit is the instance that
+     * reaches a consumer with both columns unset.
+     *
+     * @test
+     * @group spec:click-tracking:AC-15
+     */
+    public function visitWithNoDeviceColumnsSerializesThemAsNull(): void
+    {
+        $visit = Visit::fromImport(
+            ShortUrl::createEmpty(),
+            new ImportedShlinkVisit('some site', 'Chrome', Chronos::now(), null),
+        );
+
+        self::assertNull($visit->deviceType());
+        self::assertNull($visit->deviceTypeDetail());
+
+        $serialized = $visit->jsonSerialize();
+
+        self::assertArrayHasKey('deviceType', $serialized);
+        self::assertArrayHasKey('deviceTypeDetail', $serialized);
+        self::assertNull($serialized['deviceType']);
+        self::assertNull($serialized['deviceTypeDetail']);
     }
 }

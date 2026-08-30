@@ -7,6 +7,10 @@ namespace Shlinkio\Shlink\Core;
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
 use Laminas\ServiceManager\Factory\InvokableFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Salesmessage\Streaming\Driver\Kafka\Message\KafkaMessageFactory;
+use Salesmessage\Streaming\Message\MessageFactoryInterface;
+use Salesmessage\Streaming\Producer\ProducerInterface;
+use Salesmessage\Streaming\Route\RouteInterface;
 use Shlinkio\Shlink\Common\Doctrine\EntityRepositoryFactory;
 use Shlinkio\Shlink\Config\Factory\ValinorConfigFactory;
 use Shlinkio\Shlink\Core\ErrorHandler;
@@ -84,6 +88,10 @@ return [
 
             EventDispatcher\PublishingUpdatesGenerator::class => ConfigAbstractFactory::class,
 
+            ProducerInterface::class => EventDispatcher\Kafka\KafkaProducerFactory::class,
+            RouteInterface::class => EventDispatcher\Kafka\VisitsTopicFactory::class,
+            KafkaMessageFactory::class => InvokableFactory::class,
+
             Importer\ImportedLinksProcessor::class => ConfigAbstractFactory::class,
 
             Crawling\CrawlingHelper::class => ConfigAbstractFactory::class,
@@ -91,6 +99,7 @@ return [
 
         'aliases' => [
             ImportedLinksProcessorInterface::class => Importer\ImportedLinksProcessor::class,
+            MessageFactoryInterface::class => KafkaMessageFactory::class,
         ],
     ],
 

@@ -21,6 +21,31 @@
         "potentialBot": {
             "type": "boolean",
             "description": "Tells if Shlink thinks this visit comes potentially from a bot or crawler"
+        },
+        "id": {
+            "type": "integer",
+            "description": "This visit's own stable identity, which is never reused"
+        },
+        "visitedUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The full URL which was visited, including the query string"
+        },
+        "deviceType": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+                "mobile",
+                "tablet",
+                "desktop",
+                "other"
+            ],
+            "description": "The device class assigned to this visit. Anything not positively recognized as mobile, tablet or desktop is reported as other, never as desktop. Null for visits captured before device classification existed"
+        },
+        "deviceTypeDetail": {
+            "type": "string",
+            "nullable": true,
+            "description": "The underlying device type the other class stands for, or an explicit unknown marker where it could not be determined. Null when deviceType is not other"
         }
     }
 }

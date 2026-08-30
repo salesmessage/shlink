@@ -1,12 +1,7 @@
 name: Tests
 
 on:
-  workflow_call:
-    inputs:
-      test-group:
-        type: string
-        required: true
-        description: One of unit, api or cli
+  workflow_call: null
 
 jobs:
   tests:
@@ -16,22 +11,16 @@ jobs:
         php-version: ['8.1', '8.2']
     steps:
       - uses: actions/checkout@v3
-      - name: Start postgres database server
-        if: ${{ inputs.test-group == 'api' }}
-        run: docker-compose -f docker-compose.yml -f docker-compose.ci.yml up -d shlink_db_postgres
-      - name: Start maria database server
-        if: ${{ inputs.test-group == 'cli' }}
-        run: docker-compose -f docker-compose.yml -f docker-compose.ci.yml up -d shlink_db_maria
       - uses: './.github/actions/ci-setup'
         with:
           php-version: ${{ matrix.php-version }}
-          php-extensions: openswoole-4.12.0
-          extensions-cache-key: tests-extensions-${{ matrix.php-version }}-${{ inputs.test-group }}
-      - run: composer test:${{ inputs.test-group }}:ci
+          php-extensions: openswoole-4.12.0, rdkafka
+          extensions-cache-key: tests-extensions-${{ matrix.php-version }}-unit
+      - run: composer test:unit:ci
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.php-version == '8.1' }}
         with:
-          name: coverage-${{ inputs.test-group }}
+          name: coverage-unit
           path: |
-            build/coverage-${{ inputs.test-group }}
-            build/coverage-${{ inputs.test-group }}.cov
+            build/coverage-unit
+            build/coverage-unit.cov

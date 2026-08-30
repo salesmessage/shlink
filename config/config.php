@@ -42,9 +42,6 @@ return (new ConfigAggregator\ConfigAggregator([
     CLI\ConfigProvider::class,
     Rest\ConfigProvider::class,
     new ConfigAggregator\PhpFileProvider('config/autoload/{{,*.}global,{,*.}local}.php'),
-    $isTestEnv
-        ? new ConfigAggregator\PhpFileProvider('config/test/*.global.php')
-        : new ConfigAggregator\ArrayProvider([]),
     // Routes have to be loaded last
     new ConfigAggregator\PhpFileProvider('config/autoload/routes.config.php'),
 ], 'data/cache/app_config.php', [

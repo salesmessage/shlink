@@ -7,8 +7,10 @@ namespace ShlinkioTest\Shlink\Core\Visit\Transformer;
 use Laminas\Diactoros\ServerRequestFactory;
 use Laminas\Diactoros\Uri;
 use PHPUnit\Framework\TestCase;
+use Shlinkio\Shlink\Core\Visit\DeviceClassifier;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Shlinkio\Shlink\Core\Visit\Entity\VisitLocation;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Core\Visit\Transformer\OrphanVisitDataTransformer;
@@ -46,6 +48,9 @@ class OrphanVisitDataTransformerTest extends TestCase
                 'potentialBot' => false,
                 'visitedUrl' => '',
                 'type' => VisitType::BASE_URL->value,
+                'id' => 0,
+                'deviceType' => DeviceClass::OTHER->value,
+                'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
             ],
         ];
         yield 'invalid short url visit' => [
@@ -62,6 +67,9 @@ class OrphanVisitDataTransformerTest extends TestCase
                 'potentialBot' => false,
                 'visitedUrl' => 'https://example.com/foo',
                 'type' => VisitType::INVALID_SHORT_URL->value,
+                'id' => 0,
+                'deviceType' => DeviceClass::OTHER->value,
+                'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
             ],
         ];
         yield 'regular 404 visit' => [
@@ -80,6 +88,9 @@ class OrphanVisitDataTransformerTest extends TestCase
                 'potentialBot' => false,
                 'visitedUrl' => 'https://doma.in/foo/bar',
                 'type' => VisitType::REGULAR_404->value,
+                'id' => 0,
+                'deviceType' => DeviceClass::OTHER->value,
+                'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
             ],
         ];
     }

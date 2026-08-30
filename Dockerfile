@@ -21,10 +21,12 @@ RUN \
     docker-php-ext-install -j"$(nproc)" pdo_sqlite && \
     # Remove temp dev extensions, and install prod equivalents that are required at runtime
     apk del .dev-deps && \
-    apk add --no-cache postgresql icu libzip libpng
+    apk add --no-cache postgresql icu libzip libpng librdkafka
 
-# Install openswoole and sqlsrv driver for x86_64 builds
-RUN apk add --no-cache --virtual .phpize-deps ${PHPIZE_DEPS} unixodbc-dev && \
+# Install rdkafka, openswoole and sqlsrv driver for x86_64 builds
+RUN apk add --no-cache --virtual .phpize-deps ${PHPIZE_DEPS} unixodbc-dev librdkafka-dev && \
+    pecl install rdkafka && \
+    docker-php-ext-enable rdkafka && \
     if [ "$SHLINK_RUNTIME" == 'openswoole' ]; then \
         pecl install openswoole-${OPENSWOOLE_VERSION} && \
         docker-php-ext-enable openswoole ; \

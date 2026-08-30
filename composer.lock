@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6fc0cfc454915bd3453163bcbd9a96ef",
+    "content-hash": "146840e5ad8d63d25049e7824a60c451",
     "packages": [
         {
             "name": "akrabat/ip-address-middleware",
@@ -6462,6 +6462,65 @@
                 }
             ],
             "time": "2025-08-12T14:04:38+00:00"
+        },
+        {
+            "name": "salesmessage/streaming",
+            "version": "v4.0.0",
+            "source": {
+                "type": "git",
+                "url": "git@github.com:salesmessage/php-lib-streaming.git",
+                "reference": "3dac5d0e00c498c226d9b27db224e026b69e52a4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/salesmessage/php-lib-streaming/zipball/3dac5d0e00c498c226d9b27db224e026b69e52a4",
+                "reference": "3dac5d0e00c498c226d9b27db224e026b69e52a4",
+                "shasum": ""
+            },
+            "require": {
+                "ext-rdkafka": "^6.0.0",
+                "php": ">=8.2",
+                "psr/container": "^1.1 || ^2.0",
+                "psr/log": "^3.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^10.5",
+                "symfony/var-dumper": "^7.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Salesmessage\\Streaming\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Salesmessage\\Streaming\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "tests": [
+                    "vendor/bin/phpunit"
+                ],
+                "tests-verbose": [
+                    "vendor/bin/phpunit --testdox"
+                ],
+                "phpstan": [
+                    "vendor/bin/phpstan"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "authors": [
+                {
+                    "name": "Kanstantsin Kulesh",
+                    "email": "kkulesh@neklo.com"
+                }
+            ],
+            "description": "Aimed at unifying the use of event streams and queues.",
+            "time": "2026-08-28T18:19:37+00:00"
         },
         {
             "name": "shlinkio/shlink-common",
@@ -14431,6 +14490,6 @@
         "ext-json": "*",
         "ext-pdo": "*"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
 }
