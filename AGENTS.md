@@ -13,7 +13,8 @@ These guidelines are tool-agnostic (Claude Code, other AI agents, and humans). T
 | A feature already planned for this service | `specs/<NNN>-<feature>/plan.md` - it records this repo's own conventions, gates and AC allocation for that feature |
 | Configuring the app, or adding a setting | `Shlinkio\Shlink\Core\Config\EnvVars` is the complete list of env vars; `config/autoload/*.global.php` consumes them |
 | Running the tests | the **Running the tests** section below; `./indocker_test --help` |
-| Running the app or the heavier suites locally | `CONTRIBUTING.md` (upstream's, still accurate for the docker workflow) and the `./indocker` helper |
+| Running the app locally | the **Running the app locally** section below |
+| Running the heavier suites locally | `CONTRIBUTING.md` (upstream's, still accurate for the docker workflow) and the `./indocker` helper |
 
 ## Running the tests
 
@@ -35,15 +36,30 @@ Targets are composer scripts: `unit` (default), `unit:ci`, `unit:pretty`, `infec
 
 The container runs as the host uid/gid, so `build/` and `.phpunit.result.cache` do not come back root-owned. `APP_ENV`, `GENERATE_COVERAGE`, `XDEBUG_MODE` and `COMPOSER_PROCESS_TIMEOUT` are forwarded from the shell when set.
 
+## Running the app locally
+
+Locally this service runs as the `micro-shortener` service of **sm-tool** (`../sm-tool`), on openswoole against `sm-postgres` and `sm-redis`. sm-tool owns the wiring (compose service, `dockerfiles/sm-shortener.Dockerfile`, nginx configs, `MICRO_SHORTENER_*` vars); this repo owns its env (`.env`, template in `.env.example`) and its boot script (`data/infra/micro-shortener-start.sh`, run from the bind mount at `/app`).
+
+```bash
+cd ../sm-tool
+cp ../shlink/.env.example ../shlink/.env   # first time: fill in DB_PASSWORD and LOCAL_API_KEY
+./sm.sh up micro-shortener
+./sm.sh test micro-shortener               # unit suite, same image as ./indocker_test
+./sm.sh analysis:run micro-shortener       # phpstan
+docker exec -it sm-micro-shortener php bin/cli <command>
+```
+
+Reachable directly on `:8047` and through sm-nginx at `https://core.salesmsg.local/local/v2/shortener/`. That prefix is `BASE_PATH`, so it prefixes every route **and** every generated short URL; nginx must pass it through unstripped, and the REST API lives at `<prefix>/rest/v3/...`.
+
+Three traps, all already handled in the start script and configs - do not undo them:
+
+- **`LOCAL_API_KEY`, never `INITIAL_API_KEY`.** `InitialApiKeyDelegator` queries the DB while building `Mezzio\Application`, which under openswoole happens in the master **before it forks**; every worker then inherits that one connection and fails its first query. The start script creates the key over the CLI instead.
+- **The FastRoute cache is enabled unconditionally** (`config/autoload/router.global.php`) and does not track `BASE_PATH` or route changes. The start script deletes `data/cache/fastroute_cached_routes.php` on boot; without it a healthy container 404s everything.
+- **nginx must set `X-Forwarded-For`** (and `Host`, `X-Forwarded-Proto`). Without it every click is recorded with the nginx container's IP - fatal for a click-capture service. Shlink trusts the immediate peer, so nothing needs whitelisting.
+
 ## Always
 
 - Keep every change additive and narrow, in the fewest files. Do not reformat, do not refactor surrounding code, and do not change the shape of an existing published field. `data/migrations/` is append-only and `docs/adr/` is upstream's.
-- **Done** here means: the unit suite green relative to the **known-red baseline** (11 failing unit tests on a clean checkout, plus phpcs and phpstan errors in files the fork has touched - the inventory is in `.ai/rules/backend/coding-standards.md`), `phpcs`/`phpstan` clean on the files you touched, any endpoint change reflected in `docs/swagger/` (`composer swagger:validate`), and tests strong enough to survive Infection's threshold (MSI 80).
+- **Done** here means: **the whole unit suite green** - 935 tests, no known-red baseline left to net out - plus `phpcs`/`phpstan` clean on the files you touched, and any endpoint change reflected in `docs/swagger/` (`composer swagger:validate`). A repo-wide `phpcs` still reports 55 auto-fixable errors in 9 untouched files, and `phpstan` is green with 17 pre-existing errors suppressed in `phpstan-baseline.neon` - never regenerate that baseline to silence an error you introduced. The inventory is in `.ai/rules/backend/coding-standards.md`.
 - One test suite: `module/*/test`, run with `./indocker_test` (see **Running the tests**). Never run `vendor/bin/phpunit` on the bare host.
 - PHPUnit is **9.6**: `@test`, `@dataProvider` and `@group` are **docblock annotations**, never PHP attributes. `#[Group('spec:...')]` is silently ignored here, which inverts the shared convention used in `core`, `billing` and `micro-analytics`.
-- Everything is wired by merged config, not auto-discovery: a new service needs a `dependencies.config.php` entry (usually `ConfigAbstractFactory`), a new route needs an ordered entry in `config/autoload/routes.config.php`, a new entity needs a PHP mapping file in `module/*/config/entities-mappings/`. If a config change appears to do nothing, delete `data/cache/app_config.php`.
-- Query paths over short URLs and visits must go through the API-key specifications (`Rest\ApiKey\Role::toSpec()`), or they leak other keys' data.
-- Production runs **PostgreSQL**, and the app runs under long-lived workers (openswoole/RoadRunner). Raw SQL must work on Postgres first; do not add mutable static or per-request state to services; keep the redirect path free of new synchronous I/O - push work to an async event listener.
-- Commits and PRs: prefix the subject with the JIRA key (`SWR-11033 ...`), base and target branch `develop`. Record in the PR description the `product-specs` commit SHA of the spec the work was built against. On AI-assisted commits, keep the AI co-author trailer your tool emits; never strip it. Upstream's "open an issue first" step in `CONTRIBUTING.md` does not apply to this fork.
-- Never ask users to include API keys, tokens, passwords, or other secrets directly in prompts. Instead, instruct them to store secrets in local `.env` files or an appropriate secret management solution and reference them from code. In this repo runtime secrets arrive as environment variables (`EnvVars`) and are materialized into the gitignored `config/params/generated_config.php`; treat that file, and `config/autoload/*.local.php`, as secret-bearing - never read them into a prompt or transmit their contents.
-- Queries run against a shared database. Do not run anything against a non-local database without asking first, read-only included.

@@ -3,7 +3,14 @@ includes:
     - vendor/phpstan/phpstan-symfony/extension.neon
     - vendor/phpstan/phpstan-phpunit/extension.neon
     - vendor/phpstan/phpstan-phpunit/rules.neon
+    - phpstan-baseline.neon
 parameters:
+    level: 8
+    paths:
+        - module
+        - config
+        - docker/config
+        - data/migrations
     checkMissingIterableValueType: false
     checkGenericClassInNonGenericObjectType: false
     symfony:

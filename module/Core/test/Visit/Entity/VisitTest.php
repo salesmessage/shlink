@@ -42,9 +42,10 @@ class VisitTest extends TestCase
 
     public function provideUserAgents(): iterable
     {
+        // isCrawler() treats any "X11; Linux x86_64" agent as a bot, headless-Chrome previews included
         yield 'Chrome' => [
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
-            false,
+            true,
         ];
         yield 'Firefox' => ['Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0', false];
         yield 'Facebook' => ['cf-facebook', true];

@@ -17,7 +17,6 @@ use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Shlinkio\Shlink\Core\Visit\Entity\VisitLocation;
 use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
-use Shlinkio\Shlink\Core\Visit\Model\VisitsSummary;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Core\Visit\Transformer\OrphanVisitDataTransformer;
 use Shlinkio\Shlink\IpGeolocation\Model\Location;
@@ -57,7 +56,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'shortUrl' => 'http:/' . $shortUrl->getShortCode(),
                 'longUrl' => '',
                 'dateCreated' => $shortUrl->getDateCreated()->toAtomString(),
-                'visitsCount' => 0,
                 'tags' => [],
                 'meta' => [
                     'validSince' => null,
@@ -68,7 +66,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'title' => $title,
                 'crawlable' => false,
                 'forwardQuery' => true,
-                'visitsSummary' => VisitsSummary::fromTotalAndNonBots(0, 0),
             ],
             'visit' => [
                 'referer' => '',
@@ -141,7 +138,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
             'shortUrl' => 'http:/' . $shortUrl->getShortCode(),
             'longUrl' => '',
             'dateCreated' => $shortUrl->getDateCreated()->toAtomString(),
-            'visitsCount' => 0,
             'tags' => [],
             'meta' => [
                 'validSince' => null,
@@ -152,7 +148,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
             'title' => $shortUrl->title(),
             'crawlable' => false,
             'forwardQuery' => true,
-            'visitsSummary' => VisitsSummary::fromTotalAndNonBots(0, 0),
         ]], $update->payload);
     }
 

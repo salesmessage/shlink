@@ -32,14 +32,17 @@ Match the surrounding upstream style beyond that: `final` where the class is not
 
 `composer stan` is phpstan **level 8** over `module/*/src`, `module/*/test*`, `module/*/config`, `config`, `docker/config` and `data/migrations`, with the Doctrine, Symfony and PHPUnit extensions loaded.
 
-### In this repo: the baseline is red
+### In this repo: the unit suite is green, phpcs is not
 
-Neither check passes on a clean checkout. As of the last verified run, all of the offending files are ones the fork has touched:
+As of the last verified run (2026-08-31, branch `SWR-11033`):
 
 | Check | Baseline state |
 |---|---|
-| `composer cs` | 58 errors in 11 files, all auto-fixable, incl. `module/Core/src/Action/RedirectAction.php`, `module/CLI/src/Command/Import/DataImportCommand.php`, `module/Core/src/ShortUrl/Transformer/ShortUrlDataTransformer.php`, `module/CLI/src/Command/Db/PostMigrationCommand.php`, both `data/migrations/Version202512*.php` |
-| `composer stan` | 18 errors in 3 files: `config/autoload/dependencies.global.php`, `DataImportCommand.php`, `ShortUrlDataTransformer.php` |
+| `composer test:unit` | **green** - 935 tests, 2821 assertions, 0 failures |
+| `composer cs` | 55 errors (+2 warnings) in 9 files, all auto-fixable. 43 of them are in `module/CLI/src/Command/Import/DataImportCommand.php`; the rest are single-error files, incl. `module/Core/src/Action/RedirectAction.php` (4), `module/CLI/src/Command/Db/PostMigrationCommand.php`, `module/Core/functions/functions.php`, `config/autoload/dependencies.global.php`, both `data/migrations/Version202512*.php` |
+| `composer stan` | **green** - 17 pre-existing errors across `config/autoload/dependencies.global.php` and `DataImportCommand.php` are captured in `phpstan-baseline.neon` |
+
+`phpstan-baseline.neon` is a suppression list, not a target. Never regenerate it to silence an error your change introduced - fix the code. Do delete an entry when your change genuinely fixes the error it covers, because phpstan fails on a baseline pattern that no longer matches anything.
 
 So judge your change on the **files you touched**, not on a whole-repo run:
 

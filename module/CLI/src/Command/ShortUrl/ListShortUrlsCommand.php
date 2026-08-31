@@ -10,12 +10,12 @@ use Shlinkio\Shlink\CLI\Util\ExitCodes;
 use Shlinkio\Shlink\CLI\Util\ShlinkTable;
 use Shlinkio\Shlink\Common\Paginator\Paginator;
 use Shlinkio\Shlink\Common\Paginator\Util\PagerfantaUtilsTrait;
-use Shlinkio\Shlink\Common\Rest\DataTransformerInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlsParams;
 use Shlinkio\Shlink\Core\ShortUrl\Model\TagsMode;
 use Shlinkio\Shlink\Core\ShortUrl\Model\Validation\ShortUrlsParamsInputFilter;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlListServiceInterface;
+use Shlinkio\Shlink\Core\ShortUrl\Transformer\ShortUrlDataTransformer;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -40,7 +40,7 @@ class ListShortUrlsCommand extends Command
 
     public function __construct(
         private readonly ShortUrlListServiceInterface $shortUrlService,
-        private readonly DataTransformerInterface $transformer,
+        private readonly ShortUrlDataTransformer $transformer,
     ) {
         parent::__construct();
         $this->startDateOption = new StartDateOption($this, 'short URLs');
@@ -179,7 +179,7 @@ class ListShortUrlsCommand extends Command
         $shortUrls = $this->shortUrlService->listShortUrls($params);
 
         $rows = map($shortUrls, function (ShortUrl $shortUrl) use ($columnsMap) {
-            $rawShortUrl = $this->transformer->transform($shortUrl);
+            $rawShortUrl = $this->transformer->transform($shortUrl, withVisitsCount: true);
             return map($columnsMap, fn (callable $call) => $call($rawShortUrl, $shortUrl));
         });
 

@@ -36,7 +36,7 @@ PHPUnit is 9.6 in this repo, so the `#[Group(...)]` attribute the platform's PHP
 
 | # | Needed | From |
 |---|---|---|
-| 1 | Establish the known-red baseline (58 phpcs, 18 phpstan, 4 failures and 7 errors in the unit suite on a clean checkout) before blaming your change | this repo |
+| 1 | Establish the baseline before blaming your change. Since 2026-08-31 the unit suite is **absolutely green** and `phpstan` is green behind `phpstan-baseline.neon`; only `phpcs` is still red (55 auto-fixable errors in 9 files, 43 of them in `DataImportCommand.php`) | this repo |
 | 2 | Which RabbitMQ publishing mode this deployment runs (`legacyVisitsPublishing`) - the Kafka payload must be the non-legacy `{shortUrl, visit}` shape whatever it is, and the PR must say which mode is live | ops / this repo's config |
 | 3 | The Kafka environment values per environment (T003). The publisher ships disabled, so this does not block the work - only T145 | ops |
 
@@ -83,7 +83,7 @@ and T039 in `core`.
 
 ### Refactor and verify
 
-- [ ] T031 **Rescoped 2026-08-30.** Run `./indocker_test ci` - which in this fork is `cs`, `stan`, `swagger:validate`, the unit suite and Infection over the unit suite; the db, api and cli suites and their MSI gates were deliberately removed. **Done means green relative to the repo's known-red baseline, not absolutely green** (`AGENTS.md`): `swagger:validate` passes outright, and `cs`, `stan` and the unit suite must add no error beyond the documented baseline - 11 unit failures, plus the phpcs and phpstan errors inventoried in `.ai/rules/backend/coding-standards.md`. Confirm `phpcs` and `phpstan` are clean on every file this feature touched, that `isCrawler()` and the `regular` `LocateVisit` listener are unchanged, that no existing published field changed shape, and that every owned AC has a passing `@group`-tagged test. **If no coverage driver is available in the container, Infection cannot run and the MSI threshold cannot be evidenced** - say so rather than treating it as met (AC-4, AC-10, AC-11, AC-14, AC-15)
+- [ ] T031 **Rescoped 2026-08-30; baseline re-cut 2026-08-31.** Run `./indocker_test ci` - which in this fork is `cs`, `stan`, `swagger:validate`, the unit suite and Infection over the unit suite; the db, api and cli suites and their MSI gates were deliberately removed. **The unit suite, `stan` and `swagger:validate` must now pass absolutely** - the 11 unit failures this task used to net out were fixed on 2026-08-31 (the `visitsCount` regression from `SWR-21964`, plus the upstream expectations that contradicted the fork's `isCrawler()` rule), so any red is yours. `cs` is the one check still red at the repo level; it must add no error beyond the inventory in `.ai/rules/backend/coding-standards.md`. Confirm `phpcs` and `phpstan` are clean on every file this feature touched, that `isCrawler()` and the `regular` `LocateVisit` listener are unchanged, that no existing published field changed shape, and that every owned AC has a passing `@group`-tagged test. **If no coverage driver is available in the container, Infection cannot run and the MSI threshold cannot be evidenced** - say so rather than treating it as met (AC-4, AC-10, AC-11, AC-14, AC-15)
 
 ### Rollout
 
@@ -107,8 +107,9 @@ and because the stream is the only delivery path, no click exists downstream at 
 
 - [ ] Every task above is complete
 - [ ] Every AC in the table above has a passing test tagged `@group spec:click-tracking:AC-N`
-- [ ] `./indocker_test ci` is green relative to the known-red baseline, with `phpcs` and `phpstan`
-      clean on the files touched and Infection's MSI thresholds met
+- [ ] `./indocker_test ci` green: the unit suite, `stan` and `swagger:validate` absolutely, `cs` no
+      worse than the documented inventory, `phpcs`/`phpstan` clean on the files touched, and
+      Infection's MSI thresholds met
 - [ ] The change is additive and narrow, in the smallest number of files, with no reformatting of
       surrounding code - upstream merges stay cheap
 - [ ] The new divergence is called out in the PR description with the JIRA key
