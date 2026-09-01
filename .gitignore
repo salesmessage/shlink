@@ -16,3 +16,4 @@ docker-compose.override.yml
 docs/swagger/swagger-inlined.json
 .env.testing
 .env
+auth.json
