@@ -26,8 +26,8 @@ last_updated: 2026-08-28
 
 **Producer.** This service is the click-capture point of record (`click-tracking#ADR-001`): it records
 every redirect it serves, enriches the visit with the country it already resolves and with a device
-class it now produces, and publishes the located visit onto the platform's Kafka event bus. It also
-serves the account-wide visit listing that is the contract's stated recovery path.
+class it now produces, and publishes the located visit onto the platform's Kafka event bus. That stream is the only route:
+there is no recovery listing and no reconciliation (*corrected 2026-09-02*).
 
 It consumes nothing at this boundary and calls no other service. It does not know what a contact, a
 source, an inbox or an organization is, and this feature does not teach it - attribution is entirely
@@ -41,7 +41,6 @@ the consumer's work.
 | `{shortUrl, visit}` envelope | message body | emits | Schema, Response / Payload |
 | `visit.id`, `visit.visitedUrl`, `visit.deviceType`, `visit.deviceTypeDetail` | payload elements | adds (the four marked **New**) | Schema; Versioning, third bullet |
 | `visit.potentialBot`, `visit.date`, `visit.userAgent`, `visit.visitLocation` | payload elements | already emits, unchanged | Schema |
-| Account-wide visit listing over a date range, paginated | endpoint | implements | Guarantees, second bullet |
 
 ## Mapping to this repo
 
@@ -78,7 +77,8 @@ the consumer's work.
   or drops a redirect (Guarantees, fifth bullet; BR-46).
 - **Publishing is best effort and is not retried**, and the contract states that openly. A produce
   failure is caught, logged and swallowed: the visit, the other four notifiers and the redirect are
-  all unaffected. What compensates for the loss is the listing guarantee above, not a retry here.
+  all unaffected. Nothing compensates for the loss - the stream is the only route - which is why the
+  failure is logged at error level rather than swallowed.
 - **No field this service emits identifies a contact, a source or an organization**
   (`click-tracking#ADR-004`).
 

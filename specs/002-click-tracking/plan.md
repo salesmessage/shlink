@@ -4,7 +4,7 @@
 
 **Spec**: product-specs `specs/002-click-tracking/spec.md` | **Common plan**: product-specs `specs/002-click-tracking/plan.md` | **Contract**: product-specs `specs/002-click-tracking/contracts/click-recorded.md`
 
-**ADRs referenced below**, all in product-specs `specs/002-click-tracking/adr/`: `ADR-001` (`ADR-001-click-capture-point-of-record.md`), `ADR-002` (`ADR-002-attribution-durability.md`), `ADR-003` (`ADR-003-single-device-classifier.md`)
+**ADRs referenced below**, all in product-specs `specs/002-click-tracking/adr/`: `ADR-001` (`ADR-001-click-capture-point-of-record.md`), `ADR-002` (`ADR-002-attribution-durability.md`), `ADR-003` (`ADR-003-single-device-classifier.md`), `ADR-004` (`ADR-004-click-record-references-the-message.md`, cited by the contract file)
 
 Self-contained handoff. A developer in `shlink` can execute this without reading the other services'
 plans.
@@ -19,7 +19,7 @@ serves, with the user agent, the referer, the **full visited URL** - which is wh
 per-message marker survives - its own bot verdict, the click time, and a country resolved from the
 local GeoLite2 database. It already publishes each located visit to RabbitMQ, Mercure, Redis and
 webhooks - none of which `core` consumes. It already answers an account-wide, date-ranged, paginated
-visit listing.
+visit listing, which this feature does not use: the stream is the only route.
 
 Three things are missing, and they are the whole of this service's work:
 
@@ -47,9 +47,9 @@ every future upstream merge.
 | Agent instructions | [`AGENTS.md`](../../AGENTS.md), pulled in by [`CLAUDE.md`](../../CLAUDE.md), with the detail in `.ai/rules/**` - authoritative, load only what the task needs. Upstream's [`CONTRIBUTING.md`](../../CONTRIBUTING.md) is still accurate for the docker workflow and the command list, but it is written for outside contributors to `shlinkio/shlink`, not for this fork |
 | Fork discipline | This is a maintained fork of `shlinkio/shlink`. Keep every change under `module/`, `config/`, `data/` or `bin/` additive and narrow so upstream merges stay cheap, and call out a permanent divergence in the PR description with the JIRA key. Establish the baseline before blaming your change, and judge your work on the files you touched. As of 2026-08-31 only `phpcs` is still red (55 auto-fixable errors in 9 files); the unit suite is green and `phpstan` is green behind `phpstan-baseline.neon` |
 | Run the tests | `./indocker_test` (unit suite - the only one this fork runs). A single case: `./indocker_test --filter <TestName> <path>`. See [Testing](../../README.md#testing) |
-| Definition of done | `./indocker_test ci` green - it parallelises `cs` (phpcs), `stan` (**phpstan level 8**, per the `stan` script in `composer.json`), `swagger:validate` and the unit suite, then infection mutation testing with an **MSI threshold of 80**. The mutation gate is the one most likely to fail a change here; write the tests that kill the mutants, do not lower the threshold |
+| Definition of done | `./indocker_test ci` green - it parallelises `cs` (phpcs), `stan` (**phpstan level 8**, per the `stan` script in `composer.json`), `swagger:validate` and the unit suite. The `ci` script also runs infection mutation testing with an MSI threshold of 80, but **that gate is the fork's inherited requirement, not this feature's**: `AGENTS.md`'s own "Done here means" names no mutation gate, and the T163 finding was dismissed on that ground (2026-08-31). Done here is the unit suite, `stan`, `swagger:validate`, and `phpcs`/`phpstan` clean on the files touched |
 | Test conventions | One kind: unit, mocked, high coverage - this fork removed upstream's db, api and cli suites. Tests live in each module's own `test/` folder mirroring `src/`. `phpunit.xml.dist` declares the `Core`, `Rest` and `CLI` suites; **repository and `Spec` classes are excluded from coverage by design** |
-| AC tagging | **New here - no `spec:` tag exists in this repo yet.** PHPUnit is **9.6** (`composer.json`), which does **not** support PHP attributes for groups, so the tag is the docblock annotation `@group spec:click-tracking:AC-N` on the test method, **not** `#[Group(...)]`. Do not copy the attribute form used in the platform's PHP repos |
+| AC tagging | **In use since 2026-08-28** - fourteen `@group spec:click-tracking:AC-*` tags across five test files under `module/Core/test/`. PHPUnit is **9.6** (`composer.json`), which does **not** support PHP attributes for groups, so the tag is the docblock annotation `@group spec:click-tracking:AC-N` on the test method, **not** `#[Group(...)]`. Do not copy the attribute form used in the platform's PHP repos |
 | Commit and PR | Base and target branch `develop` ([`CONTRIBUTING.md`, "Pull request process"](../../CONTRIBUTING.md)). Upstream's "open an issue first" step does not apply to this fork - the fork's own convention, visible in its history, is a JIRA-key commit subject (`SWR-11033 ...`). Record the `product-specs` commit SHA of the spec this was built against in the PR description. On AI-assisted commits keep the AI co-author trailer your tool emits |
 | Anything not to touch | This is a maintained fork of `shlinkio/shlink` that tracks upstream. Keep every change **additive and narrow**, in the smallest number of files, so upstream merges stay cheap. Do not reformat, do not refactor surrounding code, and do not change the shape of an existing published field. `docs/adr/` is upstream's ADR set - this feature's ADRs live in `product-specs`, not there. `data/migrations/` is append-only |
 
@@ -128,8 +128,9 @@ owns no recovery feed.
      and the requirement to `composer.json`, and install the extension it needs in `Dockerfile` and
      `data/infra/*.Dockerfile` the way the image already installs openswoole - `librdkafka-dev` in the
      temporary `.dev-deps`, `pecl install rdkafka`, `docker-php-ext-enable rdkafka`, and `librdkafka`
-     in the runtime `apk add`. Note the library needs **PHP >= 8.2**: the image is 8.3, but this repo's
-     own `composer.json` still declares `php: ^8.1`, so a developer on 8.1 will not be able to install.
+     in the runtime `apk add`. Note the library needs **PHP >= 8.2**. The runtime is **PHP 8.3** everywhere (image and
+     developers, confirmed by the author 2026-09-02); `composer.json`'s `php: ^8.1` is a stale lower
+     bound, harmless on 8.3 and left as repo housekeeping outside this feature.
    - **Wiring, following `micro-workflows`.** Build a `KafkaProducerConfig` (`metadata.broker.list`
      from config, an `acks`/timeout/idempotence set, and `setOnError()` logging), `KafkaProducerOptions`
      for the flush policy, a `KafkaProducerDriver`, and a `SimpleProducer` with the JSON encoding
@@ -212,7 +213,10 @@ attribute.
 | AC-11 | Unit test: a visit with no resolvable location serializes `visitLocation` as absent, and the visit is still recorded - the degradation path, not an error | `@group spec:click-tracking:AC-11` |
 | AC-10 | Unit test: the serialized `date` is UTC regardless of the configured application timezone | `@group spec:click-tracking:AC-10` |
 | AC-4 | Unit test: a visit from a crawler user agent serializes `potentialBot: true`, so the consumer can exclude it | `@group spec:click-tracking:AC-4` |
-| AC-4 | Unit test: the short-URL visit query passes `excludeBots` through to both visit filters. Wiring only - the repository is mocked, so the omission itself is not asserted here; that was T017, withdrawn with the db and api suites | `@group spec:click-tracking:AC-4` |
+| AC-4 | Unit test: the short-URL visit query passes `excludeBots` through to both visit filters. Wiring only - the repository is mocked, so the omission itself is not asserted here; that was T017, withdrawn with the db and api suites (`ClickTrackingTest::excludeBotsFlagIsPassedThroughToTheVisitFilters`, no task of its own) | `@group spec:click-tracking:AC-4` |
+| AC-4 | Unit test: a `Visit` built from a crawler user agent is recorded as a potential bot (`ClickTrackingTest::crawlerVisitIsRecordedAsPotentialBot`, beside T010's serialization test; tag moved to its own docblock line 2026-09-02 so PHPUnit 9.6 records the group) | `@group spec:click-tracking:AC-4` |
+| AC-15 | Unit test: a visit with no device columns serializes them as null (`VisitTest::visitWithNoDeviceColumnsSerializesThemAsNull`) - the pre-migration row, not a derived class | `@group spec:click-tracking:AC-15` |
+| - | Unit tests on the Kafka listener: nothing is published when the visit cannot be found, and orphan visits are not published - orphan visits carry no short URL and the contract covers short-link clicks only (`NotifyVisitToKafkaTest`) | untagged |
 | - | ~~DB test: the new columns persist and read back, including nulls for pre-migration rows~~ - dropped with the db suite | untagged |
 | - | ~~Migration test on all five engines via `composer test:db`~~ - dropped with the db suite | untagged |
 

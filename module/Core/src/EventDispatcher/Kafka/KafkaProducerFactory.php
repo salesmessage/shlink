@@ -41,9 +41,7 @@ class KafkaProducerFactory
             'message.timeout.ms' => '30000',
         ]);
         $producerConfig->setOnError(static function (mixed $kafka, int $err, string $reason) use ($logger): void {
-            // Warning, not error: the client retries these itself, and a publish that actually fails surfaces as an
-            // exception out of flush(), which the listener logs at error level
-            $logger->warning('Kafka producer error {err}. Reason: {reason}', ['err' => $err, 'reason' => $reason]);
+            $logger->error('Kafka producer error {err}. Reason: {reason}', ['err' => $err, 'reason' => $reason]);
         });
 
         $interceptors = new InterceptorStack();

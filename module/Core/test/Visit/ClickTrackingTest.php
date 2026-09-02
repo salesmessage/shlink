@@ -132,7 +132,10 @@ class ClickTrackingTest extends TestCase
         $adapter->getSlice(0, 10);
     }
 
-    /** @test @group spec:click-tracking:AC-4 */
+    /**
+     * @test
+     * @group spec:click-tracking:AC-4
+     */
     public function crawlerVisitIsRecordedAsPotentialBot(): void
     {
         $visit = Visit::forValidShortUrl(
