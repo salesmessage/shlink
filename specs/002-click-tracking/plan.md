@@ -55,15 +55,10 @@ every future upstream merge.
 
 ## Acceptance criteria owned
 
-Quoted from the spec so they can be tagged in tests.
+By id - the text lives in the spec, which is where it is amended, and a copy here would go
+stale at the next one. product-specs `specs/002-click-tracking/spec.md`, section 8.
 
-| AC | Criterion |
-|---|---|
-| **AC-4** | Given bot traffic on a short link, when figures are produced, then bot clicks are excluded from the per-campaign aggregate totals and are not written as per-contact click activity. |
-| **AC-10** | Given a click is recorded, when its timestamp is stored, then it is stored in UTC. |
-| **AC-11** | Given a message is delivered from any reportable source, when a recipient clicks a short URL in it, then the click is attributable to that message, contact, source record, source and inbox, and carries a resolved country and a device class. |
-| **AC-14** | Given a click whose device type is outside Mobile, Tablet and Desktop, or is unknown, when its device class is assigned, then it is classified as Other with its underlying type named, and is **never** classified as Desktop. |
-| **AC-15** | Given the same click is visible in the Click tracking area and in the Click-to-Text visit view, when its device class is displayed in both, then both show the same class, because both use the same classifier. |
+**Owned**: AC-4, AC-10, AC-11, AC-14, AC-15
 
 AC-4, AC-11 and AC-15 are **shared with `core`**, which owns the other half of each. This service's
 half is: publish a bot verdict the consumer can act on (AC-4); publish a country, a device class and
