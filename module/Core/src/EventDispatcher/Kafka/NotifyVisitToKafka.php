@@ -14,13 +14,7 @@ use Shlinkio\Shlink\Core\EventDispatcher\PublishingUpdatesGeneratorInterface;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Throwable;
 
-/**
- * Publishes every located visit onto the platform's Kafka event bus, as the `click-recorded` contract defines it.
- *
- * This is the only route from this service to the messaging platform (click-tracking#ADR-002): nothing sweeps up
- * afterwards, so a publish that fails is a click that will never become a figure, and it is logged at error level
- * rather than swallowed at the debug level the neighbouring notifiers use.
- */
+/** spec:click-tracking: ADR-002 */
 final class NotifyVisitToKafka
 {
     public const EVENT_KEY = 'shortener.click_recorded';
@@ -33,6 +27,7 @@ final class NotifyVisitToKafka
         private readonly PublishingUpdatesGeneratorInterface $updatesGenerator,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
+        private readonly DeliveryFailures $deliveryFailures,
         private readonly bool $enabled,
     ) {
     }
@@ -54,14 +49,14 @@ final class NotifyVisitToKafka
             return;
         }
 
-        // An orphan visit belongs to no short URL, so it carries neither of the two fields the consumer attributes a
-        // click by. The contract covers clicks on short URLs only
         if ($visit->isOrphan()) {
             return;
         }
 
         $shortCode = $visit->getShortUrl()?->getShortCode();
         $payload = $this->updatesGenerator->newVisitUpdate($visit)->payload;
+
+        $this->deliveryFailures->reset();
 
         try {
             $this->producer->send(
@@ -71,14 +66,25 @@ final class NotifyVisitToKafka
                     self::EVENT_KEY,
                 ),
             );
-            // send() only enqueues. Under long-lived workers the message would sit in the client's buffer until the
-            // worker happened to poll again, so the publish is not done until the buffer has been flushed
             $this->producer->flush();
         } catch (Throwable $e) {
             $this->logger->error(
                 'Error publishing visit with id "{visitId}" on short code "{shortCode}" to Kafka. The click will '
                 . 'never be attributed. {e}',
                 ['visitId' => $visitId, 'shortCode' => $shortCode, 'e' => $e],
+            );
+            return;
+        }
+
+        if ($this->deliveryFailures->hasAny()) {
+            $this->logger->error(
+                'Kafka rejected the message for visit with id "{visitId}" on short code "{shortCode}". The click '
+                . 'will never be attributed. Delivery error codes: {errorCodes}',
+                [
+                    'visitId' => $visitId,
+                    'shortCode' => $shortCode,
+                    'errorCodes' => $this->deliveryFailures->summary(),
+                ],
             );
         }
     }

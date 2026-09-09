@@ -29,10 +29,6 @@ use Shlinkio\Shlink\IpGeolocation\Resolver\IpLocationResolverInterface;
 
 use function sprintf;
 
-/**
- * Ported from the api test suite, which this fork no longer runs. The database is mocked, so what survives here is
- * the behaviour of the units the removed end-to-end assertions were really about.
- */
 class ClickTrackingTest extends TestCase
 {
     private const SHORT_CODE = 'def456';
@@ -41,9 +37,6 @@ class ClickTrackingTest extends TestCase
         . 'Gecko) Chrome/120.0.0.0 Safari/537.36';
 
     /**
-     * The per-message marker is an opaque query parameter to this service: it records the URL it receives and never
-     * parses it, which is what lets the consumer attribute the click.
-     *
      * @test
      * @group spec:click-tracking:AC-11
      */
@@ -62,9 +55,6 @@ class ClickTrackingTest extends TestCase
     }
 
     /**
-     * A location that cannot be resolved is a degradation, not an error: the visit is recorded and published all the
-     * same, with no location on it.
-     *
      * @test
      * @group spec:click-tracking:AC-11
      */
@@ -102,11 +92,6 @@ class ClickTrackingTest extends TestCase
     }
 
     /**
-     * Wiring only: the repository is mocked, so this asserts that `excludeBots` reaches both filters, not that crawler
-     * visits are actually omitted from a count. The behavioural assertion was T017, withdrawn with this fork's
-     * `test-db` and `test-api` suites because it needs persisted rows. The AC-4 tag therefore covers this flag's
-     * plumbing; the bot verdict itself is covered by `crawlerVisitIsRecordedAsPotentialBot` below.
-     *
      * @test
      * @group spec:click-tracking:AC-4
      */
@@ -148,9 +133,6 @@ class ClickTrackingTest extends TestCase
     }
 
     /**
-     * The fragments moved here from micro-shortener-proxy, which applied them while it wrote its own click record.
-     * CrawlerDetect passes every one of these user agents, so each case fails without the moved list.
-     *
      * @test
      * @dataProvider provideUserAgentsMovedFromTheRedirectProxy
      * @group spec:click-tracking:AC-4

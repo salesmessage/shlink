@@ -136,6 +136,7 @@ return [
             EventDispatcher\PublishingUpdatesGenerator::class,
             'em',
             'Logger_Shlink',
+            EventDispatcher\Kafka\DeliveryFailures::class,
             'config.kafka.enabled',
         ],
         EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq::class => [

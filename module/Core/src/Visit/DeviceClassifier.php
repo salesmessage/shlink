@@ -10,12 +10,7 @@ use function str_contains;
 use function strtolower;
 use function trim;
 
-/**
- * Assigns the single device class every consumer of a click displays (click-tracking#ADR-003).
- *
- * A pure function of the user agent: `other` is the fallback and `desktop` is returned only on a positive match, so
- * an unrecognized, empty or absent user agent is never reported as a desktop (click-tracking AC-14).
- */
+/** spec:click-tracking: ADR-003, AC-14 */
 final class DeviceClassifier
 {
     public const DETAIL_SMART_TV = 'smart-tv';
@@ -81,7 +76,6 @@ final class DeviceClassifier
         }
 
         if (self::containsAny($normalized, self::MOBILE_HINTS)) {
-            // Android without the "mobile" token is a tablet, which is the convention Android browsers follow
             return str_contains($normalized, 'android') && ! str_contains($normalized, 'mobile')
                 ? DeviceClassification::tablet()
                 : DeviceClassification::mobile();

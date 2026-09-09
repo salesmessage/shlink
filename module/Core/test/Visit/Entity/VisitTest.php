@@ -42,7 +42,6 @@ class VisitTest extends TestCase
 
     public function provideUserAgents(): iterable
     {
-        // isCrawler() treats any "X11; Linux x86_64" agent as a bot, headless-Chrome previews included
         yield 'Chrome' => [
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
             true,
@@ -167,10 +166,6 @@ class VisitTest extends TestCase
     }
 
     /**
-     * Visits captured before the device columns were added have no class, and every consumer has to tolerate that.
-     * Ported from the database test suite, which this fork no longer runs; an imported visit is the instance that
-     * reaches a consumer with both columns unset.
-     *
      * @test
      * @group spec:click-tracking:AC-15
      */

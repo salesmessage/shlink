@@ -15,6 +15,7 @@ use Salesmessage\Streaming\Producer\ProducerInterface;
 use Salesmessage\Streaming\Route\RouteInterface;
 use Shlinkio\Shlink\Common\UpdatePublishing\Update;
 use Shlinkio\Shlink\Core\EventDispatcher\Event\VisitLocated;
+use Shlinkio\Shlink\Core\EventDispatcher\Kafka\DeliveryFailures;
 use Shlinkio\Shlink\Core\EventDispatcher\Kafka\NotifyVisitToKafka;
 use Shlinkio\Shlink\Core\EventDispatcher\PublishingUpdatesGeneratorInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
@@ -34,6 +35,7 @@ class NotifyVisitToKafkaTest extends TestCase
     private MockObject & PublishingUpdatesGeneratorInterface $updatesGenerator;
     private MockObject & EntityManagerInterface $em;
     private MockObject & LoggerInterface $logger;
+    private DeliveryFailures $deliveryFailures;
 
     protected function setUp(): void
     {
@@ -43,6 +45,7 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->updatesGenerator = $this->createMock(PublishingUpdatesGeneratorInterface::class);
         $this->em = $this->createMock(EntityManagerInterface::class);
         $this->logger = $this->createMock(LoggerInterface::class);
+        $this->deliveryFailures = new DeliveryFailures();
     }
 
     /**
@@ -157,6 +160,45 @@ class NotifyVisitToKafkaTest extends TestCase
         ($this->listener())(new VisitLocated('123'));
     }
 
+    /** @test */
+    public function deliveryFailureReportedWhilePublishingIsLoggedAtErrorLevelWithVisitIdAndShortCode(): void
+    {
+        $visit = $this->visit();
+        $message = $this->createMock(ProducerMessageInterface::class);
+        $message->method('withHeader')->willReturnSelf();
+
+        $this->em->method('find')->willReturn($visit);
+        $this->updatesGenerator->method('newVisitUpdate')->willReturn(Update::forTopicAndPayload('any', []));
+        $this->messageFactory->method('createProducerMessage')->willReturn($message);
+        $this->producer->method('flush')->willReturnCallback(function (): void {
+            $this->deliveryFailures->record(-192);
+        });
+        $this->logger->expects($this->once())->method('error')->with(
+            $this->callback(static fn (string $message): bool =>
+                str_contains($message, '{visitId}') && str_contains($message, '{shortCode}')),
+            $this->callback(static fn (array $context): bool =>
+                $context['visitId'] === '123' && $context['shortCode'] === 'aB3xK'
+                && $context['errorCodes'] === '-192'),
+        );
+
+        ($this->listener())(new VisitLocated('123'));
+    }
+
+    /** @test */
+    public function deliveryFailuresFromAnEarlierPublishAreNotAttributedToThisVisit(): void
+    {
+        $message = $this->createMock(ProducerMessageInterface::class);
+        $message->method('withHeader')->willReturnSelf();
+        $this->deliveryFailures->record(-192);
+
+        $this->em->method('find')->willReturn($this->visit());
+        $this->updatesGenerator->method('newVisitUpdate')->willReturn(Update::forTopicAndPayload('any', []));
+        $this->messageFactory->method('createProducerMessage')->willReturn($message);
+        $this->logger->expects($this->never())->method('error');
+
+        ($this->listener())(new VisitLocated('123'));
+    }
+
     private function visit(): Visit
     {
         $shortUrl = ShortUrl::create(ShortUrlCreation::fromRawData([
@@ -183,6 +225,7 @@ class NotifyVisitToKafkaTest extends TestCase
             $this->updatesGenerator,
             $this->em,
             $this->logger,
+            $this->deliveryFailures,
             $enabled,
         );
     }

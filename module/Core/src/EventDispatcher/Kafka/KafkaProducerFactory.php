@@ -15,10 +15,6 @@ use Salesmessage\Streaming\Message\Interceptor\InterceptorStack;
 use Salesmessage\Streaming\Producer\ProducerInterface;
 use Salesmessage\Streaming\Producer\SimpleProducer;
 
-/**
- * Builds the Kafka producer this service publishes clicks with, following `micro-workflows`'
- * `config/container/infrastructure-streaming.php`.
- */
 class KafkaProducerFactory
 {
     public function __invoke(ContainerInterface $container): ProducerInterface
@@ -31,31 +27,35 @@ class KafkaProducerFactory
             return new NullProducer();
         }
 
-        $producerConfig = new KafkaProducerConfig($logger, [
-            'metadata.broker.list' => (string) ($config['brokers'] ?? ''),
-            'acks' => 'all',
-            'enable.idempotence' => 'true',
-            'message.send.max.retries' => '3',
-            'retry.backoff.ms' => '150',
-            'request.timeout.ms' => '10000',
-            'message.timeout.ms' => '30000',
-        ]);
-        $producerConfig->setOnError(static function (mixed $kafka, int $err, string $reason) use ($logger): void {
-            $logger->error('Kafka producer error {err}. Reason: {reason}', ['err' => $err, 'reason' => $reason]);
+        /** @var DeliveryFailures $failures */
+        $failures = $container->get(DeliveryFailures::class);
+        $brokers = (string) ($config['brokers'] ?? '');
+
+        return new LazyProducer(static function () use ($logger, $failures, $brokers): ProducerInterface {
+            $producerConfig = new KafkaProducerConfig($logger, [
+                'metadata.broker.list' => $brokers,
+                'acks' => 'all',
+                'enable.idempotence' => 'true',
+                'message.send.max.retries' => '3',
+                'retry.backoff.ms' => '150',
+                'request.timeout.ms' => '3000',
+                'message.timeout.ms' => '4000',
+            ]);
+            $producerConfig->setOnError(static function (mixed $kafka, int $err, string $reason) use ($logger): void {
+                $logger->error('Kafka producer error {err}. Reason: {reason}', ['err' => $err, 'reason' => $reason]);
+            });
+            $producerConfig->setOnDeliveryReport(new DeliveryReportRecorder($logger, $failures));
+
+            $interceptors = new InterceptorStack();
+            $interceptors->add(new EncodingInterceptor(new JsonSerializer()));
+
+            return new SimpleProducer(
+                new KafkaProducerDriver($logger, $producerConfig, new KafkaProducerOptions(
+                    defaultFlushTimeoutMs: 5000,
+                    maxAttempts: 1,
+                )),
+                $interceptors,
+            );
         });
-
-        $interceptors = new InterceptorStack();
-        $interceptors->add(new EncodingInterceptor(new JsonSerializer()));
-
-        return new SimpleProducer(
-            new KafkaProducerDriver($logger, $producerConfig, new KafkaProducerOptions(
-                // Bounded on purpose: this runs in a task worker, so a broker outage must cost seconds per visit and
-                // then be logged, not block the worker while it retries
-                defaultFlushTimeoutMs: 5000,
-                sleepingBetweenAttemptsMs: 150,
-                maxAttempts: 3,
-            )),
-            $interceptors,
-        );
     }
 }

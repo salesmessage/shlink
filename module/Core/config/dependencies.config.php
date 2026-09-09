@@ -88,6 +88,7 @@ return [
 
             EventDispatcher\PublishingUpdatesGenerator::class => ConfigAbstractFactory::class,
 
+            EventDispatcher\Kafka\DeliveryFailures::class => InvokableFactory::class,
             ProducerInterface::class => EventDispatcher\Kafka\KafkaProducerFactory::class,
             RouteInterface::class => EventDispatcher\Kafka\VisitsTopicFactory::class,
             KafkaMessageFactory::class => InvokableFactory::class,

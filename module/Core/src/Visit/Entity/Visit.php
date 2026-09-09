@@ -212,7 +212,7 @@ class Visit extends AbstractEntity implements JsonSerializable
     {
         return [
             'referer' => $this->referer,
-            // Published in UTC regardless of the app's configured timezone, per click-tracking AC-10
+            // spec:click-tracking: AC-10
             'date' => $this->date->setTimezone('UTC')->format(DATE_ATOM),
             'userAgent' => $this->userAgent,
             'visitLocation' => $this->visitLocation,

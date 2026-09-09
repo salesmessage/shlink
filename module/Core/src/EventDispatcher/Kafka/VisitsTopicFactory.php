@@ -8,10 +8,6 @@ use Psr\Container\ContainerInterface;
 use Salesmessage\Streaming\Driver\Kafka\Route\KafkaTopic;
 use Salesmessage\Streaming\Route\RouteInterface;
 
-/**
- * Resolves the topic clicks are published to. The prefix has to match the one the consumer applies, or the two sides
- * end up on different topics of the same cluster.
- */
 class VisitsTopicFactory
 {
     public function __invoke(ContainerInterface $container): RouteInterface
