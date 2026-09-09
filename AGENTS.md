@@ -36,6 +36,8 @@ Targets are composer scripts: `unit` (default), `unit:ci`, `unit:pretty`, `infec
 
 The container runs as the host uid/gid, so `build/` and `.phpunit.result.cache` do not come back root-owned. `APP_ENV`, `GENERATE_COVERAGE`, `XDEBUG_MODE` and `COMPOSER_PROCESS_TIMEOUT` are forwarded from the shell when set.
 
+GitHub Actions (`.github/workflows/ci.yml`) runs the same gates on every push and pull request to `develop`, `release`, `hotfix` and `midsprint`: `stan` and the unit suite, in that order, in a single job. `phpcs` and `swagger:validate` stay local gates - a repo-wide `phpcs` run is red on files inherited from upstream. Because this fork is public, the job is skipped for pull requests opened from a different fork - they would otherwise run untrusted code with the composer token that reads our private packages.
+
 ## Running the app locally
 
 Locally this service runs as the `micro-shortener` service of **sm-tool** (`../sm-tool`), on openswoole against `sm-postgres` and `sm-redis`. sm-tool owns the wiring (compose service, `dockerfiles/sm-shortener.Dockerfile`, nginx configs, `MICRO_SHORTENER_*` vars); this repo owns its env (`.env`, template in `.env.example`) and its boot script (`data/infra/micro-shortener-start.sh`, run from the bind mount at `/app`).

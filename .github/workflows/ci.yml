@@ -1,0 +1,101 @@
+name: CI (quality check)
+
+on:
+  push:
+    branches:
+      - develop
+      - release
+      - hotfix
+      - midsprint
+  pull_request:
+    branches:
+      - develop
+      - release
+      - hotfix
+      - midsprint
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  main:
+    name: Tests and static analysis
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          # Mirrors sm-php-cli:8.3, the image ./indocker_test runs the same suite in
+          extensions: curl, gd, mbstring, pdo, pdo_pgsql, pdo_sqlite, redis, sockets, sodium, zip
+          coverage: none
+
+      - name: Resolve composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Composer cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.3-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.3-
+
+      - name: Install dependencies
+        env:
+          # Only this step sees the token, so nothing that runs later in the job - phpstan,
+          # the test suite - can read it back out of the environment
+          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$COMPOSER_GITHUB_TOKEN" ]; then
+            echo "::error::the COMPOSER_GITHUB_TOKEN repository secret is not set"
+            exit 1
+          fi
+
+          COMPOSER_AUTH="$(jq -nc '{"github-oauth":{"github.com":env.COMPOSER_GITHUB_TOKEN}}')"
+          export COMPOSER_AUTH
+
+          composer install \
+            --no-interaction \
+            --no-progress \
+            --no-ansi \
+            --prefer-dist \
+            --no-scripts \
+            --no-plugins \
+            --ignore-platform-req=php \
+            --ignore-platform-req=ext-rdkafka
+
+      - name: Analysis
+        run: composer stan
+
+      - name: Run tests
+        if: '!cancelled()'
+        run: composer test:unit
+
+  fork-guard:
+    name: Fork pull requests are not built here
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - run: |
+          echo "::error::CI does not build pull requests from forks: the install step needs a composer token for our private packages. A maintainer has to re-run this change from a branch in this repository."
+          exit 1
