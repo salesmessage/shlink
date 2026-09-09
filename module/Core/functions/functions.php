@@ -25,6 +25,8 @@ use function str_repeat;
 use function strtolower;
 use function ucfirst;
 
+use const Shlinkio\Shlink\BOT_USER_AGENT_FRAGMENTS;
+
 function generateRandomShortCode(int $length): string
 {
     static $shortIdFactory;
@@ -108,6 +110,13 @@ function isCrawler(string $userAgent): bool
 {
     if (\str_contains($userAgent, 'X11; Linux x86_64')) {
         return true;
+    }
+
+    $lowercasedUserAgent = strtolower($userAgent);
+    foreach (BOT_USER_AGENT_FRAGMENTS as $fragment) {
+        if (\str_contains($lowercasedUserAgent, $fragment)) {
+            return true;
+        }
     }
 
     static $detector;

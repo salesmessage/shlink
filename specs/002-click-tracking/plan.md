@@ -37,21 +37,20 @@ Three things are missing, and they are the whole of this service's work:
 **What this service does not own.** It learns nothing about contacts, sources, source records,
 organizations or inboxes, and it computes no metric. It does not attribute a click to a message - it
 publishes the URL the recipient reached and lets the consumer parse it. It does not decide what a
-figure means. Keep it that way: every product concept that leaks in here has to be carried through
-every future upstream merge.
+figure means. Keep it that way.
 
 ## This repo's own rules
 
 | Concern | This repo's rule |
 |---|---|
 | Agent instructions | [`AGENTS.md`](../../AGENTS.md), pulled in by [`CLAUDE.md`](../../CLAUDE.md), with the detail in `.ai/rules/**` - authoritative, load only what the task needs. Upstream's [`CONTRIBUTING.md`](../../CONTRIBUTING.md) is still accurate for the docker workflow and the command list, but it is written for outside contributors to `shlinkio/shlink`, not for this fork |
-| Fork discipline | This is a maintained fork of `shlinkio/shlink`. Keep every change under `module/`, `config/`, `data/` or `bin/` additive and narrow so upstream merges stay cheap, and call out a permanent divergence in the PR description with the JIRA key. Establish the baseline before blaming your change, and judge your work on the files you touched. As of 2026-08-31 only `phpcs` is still red (55 auto-fixable errors in 9 files); the unit suite is green and `phpstan` is green behind `phpstan-baseline.neon` |
+| Baseline | This is a maintained fork of `shlinkio/shlink`. Establish the baseline before blaming your change, and judge your work on the files you touched. Only `phpcs` is still red (55 auto-fixable errors in 9 files); the unit suite is green and `phpstan` is green behind `phpstan-baseline.neon` |
 | Run the tests | `./indocker_test` (unit suite - the only one this fork runs). A single case: `./indocker_test --filter <TestName> <path>`. See [Testing](../../README.md#testing) |
 | Definition of done | `./indocker_test ci` green - it parallelises `cs` (phpcs), `stan` (**phpstan level 8**, per the `stan` script in `composer.json`), `swagger:validate` and the unit suite. The `ci` script also runs infection mutation testing with an MSI threshold of 80, but **that gate is the fork's inherited requirement, not this feature's**: `AGENTS.md`'s own "Done here means" names no mutation gate, and the T163 finding was dismissed on that ground (2026-08-31). Done here is the unit suite, `stan`, `swagger:validate`, and `phpcs`/`phpstan` clean on the files touched |
 | Test conventions | One kind: unit, mocked, high coverage - this fork removed upstream's db, api and cli suites. Tests live in each module's own `test/` folder mirroring `src/`. `phpunit.xml.dist` declares the `Core`, `Rest` and `CLI` suites; **repository and `Spec` classes are excluded from coverage by design** |
 | AC tagging | **In use since 2026-08-28** - fourteen `@group spec:click-tracking:AC-*` tags across five test files under `module/Core/test/`. PHPUnit is **9.6** (`composer.json`), which does **not** support PHP attributes for groups, so the tag is the docblock annotation `@group spec:click-tracking:AC-N` on the test method, **not** `#[Group(...)]`. Do not copy the attribute form used in the platform's PHP repos |
 | Commit and PR | Base and target branch `develop` ([`CONTRIBUTING.md`, "Pull request process"](../../CONTRIBUTING.md)). Upstream's "open an issue first" step does not apply to this fork - the fork's own convention, visible in its history, is a JIRA-key commit subject (`SWR-11033 ...`). Record the `product-specs` commit SHA of the spec this was built against in the PR description. On AI-assisted commits keep the AI co-author trailer your tool emits |
-| Anything not to touch | This is a maintained fork of `shlinkio/shlink` that tracks upstream. Keep every change **additive and narrow**, in the smallest number of files, so upstream merges stay cheap. Do not reformat, do not refactor surrounding code, and do not change the shape of an existing published field. `docs/adr/` is upstream's ADR set - this feature's ADRs live in `product-specs`, not there. `data/migrations/` is append-only |
+| Anything not to touch | Do not reformat, do not refactor surrounding code, and do not change the shape of an existing published field. `docs/adr/` is upstream's ADR set - this feature's ADRs live in `product-specs`, not there. `data/migrations/` is append-only |
 
 ## Acceptance criteria owned
 
@@ -92,8 +91,7 @@ owns no recovery feed.
    fallback, `desktop` is not.** A user agent is only `desktop` when it positively looks like one; an
    unrecognized, empty or absent user agent is `other` with the detail naming what it was, or an
    explicit unknown marker where nothing can be said. Keep it a pure function of the string - no
-   entity, no container dependency, no database - so it is trivially unit-testable and cheap to carry
-   across upstream merges.
+   entity, no container dependency, no database - so it is trivially unit-testable.
 
 2. **Store the class on the visit.** Two nullable columns on `visits` (class and detail) via a new
    append-only migration in `data/migrations/`, mapped in the Doctrine mapping for `Visit`. Assign
@@ -152,9 +150,6 @@ owns no recovery feed.
    - **Nothing new on the redirect path.** `VisitLocated` is already dispatched on the `async`
      channel; publishing from anywhere earlier, or synchronously, is what `click-tracking#ADR-001`
      rules out.
-
-   Call this divergence out in the PR description with the JIRA key - it is a permanent fork
-   divergence, and the PR is how the next upstream merge finds it.
 
 5. **Update the API definition.** `docs/swagger/` describes the visit shape and
    `swagger:validate` is part of `composer ci`. The new fields go in, including the enum for the

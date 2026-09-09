@@ -37,7 +37,8 @@ class ClickTrackingTest extends TestCase
 {
     private const SHORT_CODE = 'def456';
     private const CRAWLER_USER_AGENT = 'cf-facebook';
-    private const BROWSER_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36';
+    private const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like '
+        . 'Gecko) Chrome/120.0.0.0 Safari/537.36';
 
     /**
      * The per-message marker is an opaque query parameter to this service: it records the URL it receives and never
@@ -144,5 +145,50 @@ class ClickTrackingTest extends TestCase
         );
 
         self::assertTrue($visit->jsonSerialize()['potentialBot']);
+    }
+
+    /**
+     * The fragments moved here from micro-shortener-proxy, which applied them while it wrote its own click record.
+     * CrawlerDetect passes every one of these user agents, so each case fails without the moved list.
+     *
+     * @test
+     * @dataProvider provideUserAgentsMovedFromTheRedirectProxy
+     * @group spec:click-tracking:AC-4
+     */
+    public function userAgentMovedFromTheRedirectProxyIsRecordedAsPotentialBot(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+
+        self::assertTrue($visit->jsonSerialize()['potentialBot']);
+    }
+
+    public static function provideUserAgentsMovedFromTheRedirectProxy(): iterable
+    {
+        yield 'iMessage link preview' => ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+            . '(KHTML, like Gecko) Version/17.0 Safari/605.1.15 LinkPresentation/1.0'];
+        yield 'Google Messages link preview' => ['Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like '
+            . 'Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 GoogleMessages/1.0'];
+        yield 'page renderer' => ['Mozilla/5.0 (compatible; PageRenderer/1.0)'];
+        yield 'sprinklr' => ['Mozilla/5.0 (compatible; Sprinklr/1.0)'];
+        yield 'sogou' => ['Mozilla/5.0 (compatible; Sogou/1.0)'];
+    }
+
+    /**
+     * @test
+     * @dataProvider provideOrdinaryBrowserUserAgents
+     * @group spec:click-tracking:AC-4
+     */
+    public function ordinaryBrowserIsNotRecordedAsPotentialBot(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+
+        self::assertFalse($visit->jsonSerialize()['potentialBot']);
+    }
+
+    public static function provideOrdinaryBrowserUserAgents(): iterable
+    {
+        yield 'desktop' => [self::BROWSER_USER_AGENT];
+        yield 'mobile' => ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like '
+            . 'Gecko) Version/17.0 Mobile/15E148 Safari/604.1'];
     }
 }

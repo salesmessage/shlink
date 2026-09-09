@@ -24,3 +24,11 @@ const MIGRATIONS_TABLE = 'migrations';
 const SENSITIVE_HOSTS = [
     'glo3d.net',
 ];
+
+const BOT_USER_AGENT_FRAGMENTS = [
+    'linkpresentation',
+    'googlemessages',
+    'pagerenderer',
+    'sprinklr',
+    'sogou',
+];
