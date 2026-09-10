@@ -60,8 +60,6 @@ jobs:
 
       - name: Install dependencies
         env:
-          # Only this step sees the token, so nothing that runs later in the job - phpstan,
-          # the test suite - can read it back out of the environment
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
         run: |
           if [ -z "$COMPOSER_GITHUB_TOKEN" ]; then
