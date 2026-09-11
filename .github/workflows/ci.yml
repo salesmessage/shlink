@@ -28,13 +28,18 @@ defaults:
 jobs:
   main:
     name: Tests and static analysis
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
 
     steps:
+      - name: Refuse pull requests from forks
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::CI does not build pull requests from forks"
+          exit 1
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
@@ -86,14 +91,3 @@ jobs:
       - name: Run tests
         if: '!cancelled()'
         run: composer test:unit
-
-  fork-guard:
-    name: Fork pull requests are not built here
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-
-    steps:
-      - run: |
-          echo "::error::CI does not build pull requests from forks: the install step needs a composer token for our private packages. A maintainer has to re-run this change from a branch in this repository."
-          exit 1
