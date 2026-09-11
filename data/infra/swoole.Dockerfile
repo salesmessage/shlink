@@ -33,6 +33,8 @@ RUN docker-php-ext-install gd
 RUN apk add --no-cache postgresql-dev
 RUN docker-php-ext-install pdo_pgsql
 
+RUN apk add --no-cache librdkafka librdkafka-dev
+
 RUN apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS linux-headers && \
     docker-php-ext-install sockets && \
     apk del .phpize-deps
@@ -60,8 +62,8 @@ RUN mkdir -p /usr/src/php/ext/inotify \
 RUN wget https://download.microsoft.com/download/${MS_ODBC_DOWNLOAD}/msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
     apk add --allow-untrusted msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
     apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS unixodbc-dev && \
-    pecl install openswoole-${OPENSWOOLE_VERSION} pdo_sqlsrv-${PDO_SQLSRV_VERSION} pcov && \
-    docker-php-ext-enable openswoole pdo_sqlsrv pcov && \
+    pecl install openswoole-${OPENSWOOLE_VERSION} pdo_sqlsrv-${PDO_SQLSRV_VERSION} pcov rdkafka && \
+    docker-php-ext-enable openswoole pdo_sqlsrv pcov rdkafka && \
     apk del .phpize-deps && \
     rm msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk
 

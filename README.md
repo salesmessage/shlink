@@ -20,6 +20,7 @@ A PHP-based self-hosted URL shortener that can be used to serve shortened URLs u
     - [Download](#download)
     - [Configure](#configure)
 - [Using shlink](#using-shlink)
+- [Testing](#testing)
 - [Contributing](#contributing)
 
 ## Full documentation
@@ -95,6 +96,42 @@ Once shlink is installed, there are two main ways to interact with it:
     However, you probably don't want to consume the raw API yourself. That's why a nice [web client](https://github.com/shlinkio/shlink-web-client) is provided that can be directly used from [https://app.shlink.io](https://app.shlink.io), or hosted by yourself.
 
 Both the API and CLI allow you to do mostly the same operations, except for API key management, which can be done from the command line interface only.
+
+## Testing
+
+This fork runs the unit suite only: `module/Core/test`, `module/Rest/test` and `module/CLI/test`, driven by `phpunit.xml.dist`. The upstream api, database and cli suites have been removed, along with their configs and composer scripts.
+
+Tests run in a throwaway `sm-php-cli` container through the `./indocker_test` helper. Nothing else needs to be running - no `docker-compose`, no database.
+
+```bash
+./indocker_test                                    # composer test:unit (default target)
+./indocker_test --filter DeviceClassifierTest      # bare args go to phpunit
+./indocker_test module/Core/test/Visit/XTest.php   # a single file
+./indocker_test unit --filter Foo --stop-on-failure
+./indocker_test unit:pretty                        # HTML coverage report
+./indocker_test infect                             # unit tests + mutation testing
+./indocker_test cs                                 # or cs:fix, stan, swagger
+./indocker_test ci                                 # everything CI runs
+./indocker_test --raw 'composer dump-autoload'     # any command in the container
+./indocker_test --help
+```
+
+| Target | Composer script |
+|---|---|
+| `unit` (default) | `test:unit` |
+| `unit:ci` | `test:unit:ci` |
+| `unit:pretty` | `test:unit:pretty` |
+| `infect` | `infect:test:unit` |
+| `cs`, `cs:fix`, `stan`, `swagger` | `cs`, `cs:fix`, `stan`, `swagger:validate` |
+| `ci` | `ci` |
+
+Anything after the target is forwarded verbatim to the underlying command, so phpunit flags such as `--filter`, `--stop-on-failure` and file paths work. An argument that is not a known target is treated as a phpunit argument for the unit suite. `ci` and `infect` fan out internally and ignore extra arguments.
+
+Options, which must come before the target: `-p/--php VER` selects the image tag, `-n/--network NAME` attaches a docker network, `-e/--env-file FILE` binds an env file, `-r/--raw 'CMD'` runs an arbitrary command.
+
+The container runs as your uid/gid, so nothing it writes (`build/`, `.phpunit.result.cache`) ends up root-owned. `APP_ENV`, `GENERATE_COVERAGE`, `XDEBUG_MODE` and `COMPOSER_PROCESS_TIMEOUT` are forwarded from your shell when set, and `.env.test.local` or `.env.test` are bound automatically if present.
+
+Running the suite directly with `./indocker composer test:unit` still works.
 
 ## Contributing
 
