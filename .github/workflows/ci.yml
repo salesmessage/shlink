@@ -65,14 +65,14 @@ jobs:
 
       - name: Install dependencies
         env:
-          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
+          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
         run: |
-          if [ -z "$COMPOSER_GITHUB_TOKEN" ]; then
-            echo "::error::the COMPOSER_GITHUB_TOKEN repository secret is not set"
+          if [ -z "$COMPOSER_AUTH" ]; then
+            echo "::error::the COMPOSER_AUTH repository secret is not set"
             exit 1
           fi
 
-          COMPOSER_AUTH="$(jq -nc '{"github-oauth":{"github.com":env.COMPOSER_GITHUB_TOKEN}}')"
+          COMPOSER_AUTH="$(jq -nc '{"github-oauth":{"github.com":env.COMPOSER_AUTH}}')"
           export COMPOSER_AUTH
 
           composer install \
