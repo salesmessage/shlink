@@ -45,3 +45,86 @@ parameters:
 			count: 1
 			path: module/CLI/src/Command/Import/DataImportCommand.php
 
+		-
+			message: '#^Call to an undefined method object\:\:getId\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: module/CLI/src/Command/Import/DataImportCommand.php
+
+		-
+			message: '#^Method Shlinkio\\Shlink\\CLI\\Command\\Import\\DataImportCommand\:\:getShortUrl\(\) should return Shlinkio\\Shlink\\Core\\ShortUrl\\Entity\\ShortUrl but returns object\.$#'
+			identifier: return.type
+			count: 1
+			path: module/CLI/src/Command/Import/DataImportCommand.php
+
+		-
+			message: '#^Property Shlinkio\\Shlink\\CLI\\Command\\ShortUrl\\CreateShortUrlCommand\:\:\$io \(Symfony\\Component\\Console\\Style\\SymfonyStyle\|null\) is never assigned null so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: module/CLI/src/Command/ShortUrl/CreateShortUrlCommand.php
+
+		-
+			message: '#^Method Shlinkio\\Shlink\\CLI\\Command\\Util\\AbstractLockedCommand\:\:execute\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: module/CLI/src/Command/Util/AbstractLockedCommand.php
+
+		-
+			message: '#^Method Shlinkio\\Shlink\\CLI\\Command\\Visit\\AbstractVisitsListCommand\:\:execute\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: module/CLI/src/Command/Visit/AbstractVisitsListCommand.php
+
+		-
+			message: '#^Call to static method PHPUnit\\Framework\\Assert\:\:assertInstanceOf\(\) with ''Shlinkio\\\\Shlink\\\\CLI\\\\Exception\\\\GeolocationDbUpdateFailedException'' and Shlinkio\\Shlink\\CLI\\Exception\\GeolocationDbUpdateFailedException will always evaluate to true\.$#'
+			identifier: staticMethod.alreadyNarrowedType
+			count: 2
+			path: module/CLI/test/GeoLite/GeolocationDbUpdaterTest.php
+
+		-
+			message: '#^Call to static method PHPUnit\\Framework\\Assert\:\:assertTrue\(\) with true will always evaluate to true\.$#'
+			identifier: staticMethod.alreadyNarrowedType
+			count: 1
+			path: module/CLI/test/GeoLite/GeolocationDbUpdaterTest.php
+
+		-
+			message: '#^PHPDoc tag @var with type Doctrine\\Common\\Collections\\Selectable is not subtype of native type Doctrine\\Common\\Collections\\Collection\.$#'
+			identifier: varTag.nativeType
+			count: 1
+			path: module/Core/src/ShortUrl/Entity/ShortUrl.php
+
+		-
+			message: '#^Anonymous function should return Shlinkio\\Shlink\\Core\\Tag\\Entity\\Tag but returns object\.$#'
+			identifier: return.type
+			count: 1
+			path: module/Core/src/ShortUrl/Resolver/PersistenceShortUrlRelationResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>limit" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: module/Core/src/Tag/Repository/TagRepository.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>offset" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: module/Core/src/Tag/Repository/TagRepository.php
+
+		-
+			message: '#^Method Shlinkio\\Shlink\\Core\\Tag\\TagService\:\:createPaginator\(\) should return Shlinkio\\Shlink\\Common\\Paginator\\Paginator but returns Pagerfanta\\PagerfantaInterface\.$#'
+			identifier: return.type
+			count: 1
+			path: module/Core/src/Tag/TagService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between Shlinkio\\Shlink\\Common\\Entity\\AbstractEntity and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: module/Core/test/Visit/VisitsTrackerTest.php
+
+		-
+			message: '#^Call to static method PHPUnit\\Framework\\Assert\:\:assertInstanceOf\(\) with ''Mezzio\\\\Router\\\\Middleware\\\\ImplicitOptionsMiddleware'' and Mezzio\\Router\\Middleware\\ImplicitOptionsMiddleware will always evaluate to true\.$#'
+			identifier: staticMethod.alreadyNarrowedType
+			count: 1
+			path: module/Rest/test/Middleware/EmptyResponseImplicitOptionsMiddlewareFactoryTest.php

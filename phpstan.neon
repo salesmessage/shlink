@@ -11,13 +11,13 @@ parameters:
         - config
         - docker/config
         - data/migrations
-    checkMissingIterableValueType: false
-    checkGenericClassInNonGenericObjectType: false
     symfony:
-        console_application_loader: 'config/cli-app.php'
+        consoleApplicationLoader: 'config/cli-app.php'
     doctrine:
         repositoryClass: Happyr\DoctrineSpecification\Repository\EntitySpecificationRepository
         objectManagerLoader: 'config/entity-manager.php'
     ignoreErrors:
+        - identifier: missingType.iterableValue
+        - identifier: missingType.generics
         - '#should return int<0, max> but returns int#'
-        - '#expects -1|int<1, max>, int given#'
+        - '#expects -1\|int<1, max>, int given#'

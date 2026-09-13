@@ -40,7 +40,7 @@ As of the last verified run (2026-08-31, branch `SWR-11033`):
 |---|---|
 | `composer test:unit` | **green** - 935 tests, 2821 assertions, 0 failures |
 | `composer cs` | 55 errors (+2 warnings) in 9 files, all auto-fixable. 43 of them are in `module/CLI/src/Command/Import/DataImportCommand.php`; the rest are single-error files, incl. `module/Core/src/Action/RedirectAction.php` (4), `module/CLI/src/Command/Db/PostMigrationCommand.php`, `module/Core/functions/functions.php`, `config/autoload/dependencies.global.php`, both `data/migrations/Version202512*.php` |
-| `composer stan` | **green** - 17 pre-existing errors across `config/autoload/dependencies.global.php` and `DataImportCommand.php` are captured in `phpstan-baseline.neon` |
+| `composer stan` | **green** - 34 pre-existing errors across 12 untouched files are captured in `phpstan-baseline.neon`. 17 of them were surfaced by the phpstan 2.x upgrade, which turned several formerly opt-in checks on by default |
 
 `phpstan-baseline.neon` is a suppression list, not a target. Never regenerate it to silence an error your change introduced - fix the code. Do delete an entry when your change genuinely fixes the error it covers, because phpstan fails on a baseline pattern that no longer matches anything.
 
