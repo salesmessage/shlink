@@ -10,6 +10,8 @@ use Shlinkio\Shlink\Common\Entity\AbstractEntity;
 use Shlinkio\Shlink\Common\Exception\InvalidArgumentException;
 use Shlinkio\Shlink\Common\Util\IpAddress;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
+use Shlinkio\Shlink\Core\Visit\DeviceClassifier;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkOrphanVisit;
@@ -17,6 +19,8 @@ use Shlinkio\Shlink\Importer\Model\ImportedShlinkVisit;
 
 use function Shlinkio\Shlink\Core\isCrawler;
 use function Shlinkio\Shlink\Core\normalizeDate;
+
+use const DATE_ATOM;
 
 class Visit extends AbstractEntity implements JsonSerializable
 {
@@ -29,6 +33,8 @@ class Visit extends AbstractEntity implements JsonSerializable
     private ?ShortUrl $shortUrl;
     private ?VisitLocation $visitLocation = null;
     private bool $potentialBot;
+    private ?DeviceClass $deviceType = null;
+    private ?string $deviceTypeDetail = null;
 
     private function __construct(?ShortUrl $shortUrl, VisitType $type)
     {
@@ -109,6 +115,10 @@ class Visit extends AbstractEntity implements JsonSerializable
         $this->remoteAddr = $this->processAddress($anonymize, $visitor->remoteAddress);
         $this->visitedUrl = $visitor->visitedUrl;
         $this->potentialBot = $visitor->isPotentialBot();
+
+        $classification = DeviceClassifier::classify($this->userAgent);
+        $this->deviceType = $classification->class;
+        $this->deviceTypeDetail = $classification->detail;
     }
 
     private function processAddress(bool $anonymize, ?string $address): ?string
@@ -166,6 +176,16 @@ class Visit extends AbstractEntity implements JsonSerializable
         return $this->visitedUrl;
     }
 
+    public function deviceType(): ?DeviceClass
+    {
+        return $this->deviceType;
+    }
+
+    public function deviceTypeDetail(): ?string
+    {
+        return $this->deviceTypeDetail;
+    }
+
     public function type(): VisitType
     {
         return $this->type;
@@ -192,10 +212,15 @@ class Visit extends AbstractEntity implements JsonSerializable
     {
         return [
             'referer' => $this->referer,
-            'date' => $this->date->toAtomString(),
+            // spec:click-tracking: AC-10
+            'date' => $this->date->setTimezone('UTC')->format(DATE_ATOM),
             'userAgent' => $this->userAgent,
             'visitLocation' => $this->visitLocation,
             'potentialBot' => $this->potentialBot,
+            'id' => (int) $this->getId(),
+            'visitedUrl' => $this->visitedUrl,
+            'deviceType' => $this->deviceType?->value,
+            'deviceTypeDetail' => $this->deviceTypeDetail,
         ];
     }
 }

@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping\Builder\ClassMetadataBuilder;
 use Doctrine\ORM\Mapping\Builder\FieldBuilder;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Shlinkio\Shlink\Common\Doctrine\Type\ChronosDateTimeType;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 
@@ -74,5 +75,20 @@ return static function (ClassMetadata $metadata, array $emConfig): void {
     $builder->createField('potentialBot', Types::BOOLEAN)
             ->columnName('potential_bot')
             ->option('default', false)
+            ->build();
+
+    (new FieldBuilder($builder, [
+        'fieldName' => 'deviceType',
+        'type' => Types::STRING,
+        'enumType' => DeviceClass::class,
+    ]))->columnName('device_type')
+       ->length(32)
+       ->nullable()
+       ->build();
+
+    $builder->createField('deviceTypeDetail', Types::STRING)
+            ->columnName('device_type_detail')
+            ->length(64)
+            ->nullable()
             ->build();
 };

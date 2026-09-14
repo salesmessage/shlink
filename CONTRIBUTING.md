@@ -82,48 +82,24 @@ The purposes of every folder are:
 
 ## Project tests
 
-In order to ensure stability and no regressions are introduced while developing new features, this project has different types of tests.
+In order to ensure stability and no regressions are introduced while developing new features, this project has unit tests.
 
-* **Unit tests**: These are the simplest to run, and usually test individual pieces of code, replacing any external dependency by mocks.
+* **Unit tests**: These test individual pieces of code, replacing any external dependency by mocks.
 
-    The code coverage of unit tests is pretty high, and only components which work closer to the database, like entity repositories, are excluded because of their nature.
-
-* **Database tests**: These are integration tests that run against a real database, and only cover components which work closer to the database.
-
-    Its purpose is to verify all the database queries behave as expected and return what's expected.
-
-    The project provides some tooling to run them against any of the supported database engines.
-
-* **API tests**: These are E2E tests that spin up an instance of the app with openswoole, and test it from the outside by interacting with the REST API.
-
-    These are the best tests to catch regressions, and to verify everything behaves as expected.
-
-    They use Postgres as the database engine, and include some fixtures that ensure the same data exists at the beginning of the execution.
-
-    Since the app instance is run on a process different from the one running the tests, when a test fails it might not be obvious why. To help debugging that, the app will dump all its logs inside `data/log/api-tests`, where you will find the `shlink.log` and `access.log` files.
-
-* **CLI tests**: These are E2E tests too, but they test console commands instead of REST endpoints.
-
-    They use Maria DB as the database engine, and include the same fixtures as the API tests, that ensure the same data exists at the beginning of the execution.
+    This fork runs no other suite. Upstream's database, API and CLI test suites have been removed, so behaviour that would have been covered end to end is covered here instead, with the database and any HTTP collaborator mocked.
 
 Depending on the kind of contribution, maybe not all kinds of tests are needed, but the more you provide, the better.
 
 ## Running code checks
 
-* Run `./indocker composer cs` to check coding styles are fulfilled.
-* Run `./indocker composer cs:fix` to fix coding styles (some may not be fixable from the CLI)
-* Run `./indocker composer stan` to statically analyze the code with [phpstan](https://phpstan.org/). This tool is the closest to "compile" PHP and verify everything would work as expected.
-* Run `./indocker composer test:unit` to run the unit tests.
-* Run `./indocker composer test:db` to run the database integration tests.
+* Run `./indocker_test cs` to check coding styles are fulfilled.
+* Run `./indocker_test cs:fix` to fix coding styles (some may not be fixable from the CLI)
+* Run `./indocker_test stan` to statically analyze the code with [phpstan](https://phpstan.org/). This tool is the closest to "compile" PHP and verify everything would work as expected.
+* Run `./indocker_test` to run the unit tests. Add phpunit arguments to narrow the run down, for example `./indocker_test --filter SomeTest`.
+* Run `./indocker_test infect` to run the unit tests and then apply mutations to them with [infection](https://infection.github.io/).
+* Run `./indocker_test ci` to run all previous commands together, parallelizing non-conflicting tasks as much as possible.
 
-    This command runs the same test suite against all supported database engines in parallel. If you just want to run one of them, you can add one of `:sqlite`, `:mysql`, `:maria`, `:postgres`, `:mssql` at the end of the command.
-    
-    For example, `test:db:postgres`.
-
-* Run `./indocker composer test:api` to run API E2E tests. For these, the Postgres database engine is used.
-* Run `./indocker composer test:cli` to run CLI E2E tests. For these, the Maria DB database engine is used.
-* Run `./indocker composer infect:test` to run both unit and database tests (over sqlite) and then apply mutations to them with [infection](https://infection.github.io/).
-* Run `./indocker composer ci` to run all previous commands together, parallelizing non-conflicting tasks as much as possible.
+See the [Testing](README.md#testing) section of the README for the full list of targets and options.
 
 ## Pull request process
 
