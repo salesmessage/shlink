@@ -44,7 +44,7 @@ class VisitTest extends TestCase
     {
         yield 'Chrome' => [
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
-            true,
+            false,
         ];
         yield 'Firefox' => ['Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0', false];
         yield 'Facebook' => ['cf-facebook', true];
