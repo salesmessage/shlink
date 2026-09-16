@@ -21,6 +21,7 @@ use function is_array;
 use function print_r;
 use function Shlinkio\Shlink\Common\buildDateRange;
 use function sprintf;
+use function str_contains;
 use function str_repeat;
 use function strtolower;
 use function ucfirst;
@@ -108,13 +109,9 @@ function arrayToString(array $array, int $indentSize = 4): string
 
 function isCrawler(string $userAgent): bool
 {
-    if (\str_contains($userAgent, 'X11; Linux x86_64')) {
-        return true;
-    }
-
     $lowercasedUserAgent = strtolower($userAgent);
     foreach (BOT_USER_AGENT_FRAGMENTS as $fragment) {
-        if (\str_contains($lowercasedUserAgent, $fragment)) {
+        if (str_contains($lowercasedUserAgent, $fragment)) {
             return true;
         }
     }

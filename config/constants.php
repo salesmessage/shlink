@@ -25,10 +25,15 @@ const SENSITIVE_HOSTS = [
     'glo3d.net',
 ];
 
+const URL_VALIDATION_HEADER = 'X-Shlink-Url-Validation';
+
 const BOT_USER_AGENT_FRAGMENTS = [
     'linkpresentation',
     'googlemessages',
     'pagerenderer',
     'sprinklr',
     'sogou',
+    'viberurldownloader',
+    'line-poker',
+    'signal-desktop',
 ];
