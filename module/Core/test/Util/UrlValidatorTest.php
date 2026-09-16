@@ -7,6 +7,10 @@ namespace ShlinkioTest\Shlink\Core\Util;
 use Fig\Http\Message\RequestMethodInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\RequestOptions;
 use Laminas\Diactoros\Response;
@@ -14,9 +18,12 @@ use Laminas\Diactoros\Stream;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\RequestInterface;
 use Shlinkio\Shlink\Core\Exception\InvalidUrlException;
 use Shlinkio\Shlink\Core\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\Util\UrlValidator;
+
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
 
 class UrlValidatorTest extends TestCase
 {
@@ -51,6 +58,7 @@ class UrlValidatorTest extends TestCase
                 Assert::assertTrue($options[RequestOptions::IDN_CONVERSION]);
                 Assert::assertArrayHasKey(RequestOptions::HEADERS, $options);
                 Assert::assertArrayHasKey('User-Agent', $options[RequestOptions::HEADERS]);
+                Assert::assertSame('1', $options[RequestOptions::HEADERS][URL_VALIDATION_HEADER] ?? null);
 
                 return true;
             }),
@@ -157,6 +165,35 @@ class UrlValidatorTest extends TestCase
         $body->rewind();
 
         return $body;
+    }
+
+    /** @test */
+    public function validationHeaderSurvivesRedirectsToAnotherHost(): void
+    {
+        $history = [];
+        $handlerStack = HandlerStack::create(new MockHandler([
+            new Response('php://memory', 301, ['Location' => 'https://another-host.com/abc123']),
+            new Response(),
+        ]));
+        $handlerStack->push(Middleware::history($history));
+
+        /** @var PromiseInterface $promise */
+        $promise = $handlerStack(
+            new Request(
+                RequestMethodInterface::METHOD_GET,
+                'https://first-host.com/foo',
+                [URL_VALIDATION_HEADER => '1'],
+            ),
+            [RequestOptions::ALLOW_REDIRECTS => true],
+        );
+        $promise->wait();
+
+        /** @var array<int, array{request: RequestInterface}> $history */
+        self::assertCount(2, $history);
+        self::assertSame('another-host.com', $history[1]['request']->getUri()->getHost());
+        foreach ($history as $transaction) {
+            self::assertSame('1', $transaction['request']->getHeaderLine(URL_VALIDATION_HEADER));
+        }
     }
 
     private function clientException(): ClientException

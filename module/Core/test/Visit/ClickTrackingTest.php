@@ -167,9 +167,30 @@ class ClickTrackingTest extends TestCase
         self::assertFalse($visit->jsonSerialize()['potentialBot']);
     }
 
+    /**
+     * @test
+     * @dataProvider provideLinkPreviewUserAgents
+     */
+    public function linkPreviewAgentIsRecordedAsPotentialBot(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+
+        self::assertTrue($visit->jsonSerialize()['potentialBot']);
+    }
+
+    public static function provideLinkPreviewUserAgents(): iterable
+    {
+        yield 'Viber link preview' => ['Mozilla/5.0 (compatible; ViberUrlDownloader)'];
+        yield 'LINE link preview' => ['Mozilla/5.0 (compatible; line-poker/1.0)'];
+        yield 'Signal link preview' => ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Signal-Desktop/6.42.0'];
+    }
+
     public static function provideOrdinaryBrowserUserAgents(): iterable
     {
         yield 'desktop' => [self::BROWSER_USER_AGENT];
+        yield 'linux desktop' => ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
+            . 'Chrome/153.0.0.0 Safari/537.36'];
+        yield 'linux firefox' => ['Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'];
         yield 'mobile' => ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like '
             . 'Gecko) Version/17.0 Mobile/15E148 Safari/604.1'];
     }

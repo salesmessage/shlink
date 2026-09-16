@@ -21,6 +21,7 @@ use function strtolower;
 use function trim;
 
 use const Shlinkio\Shlink\TITLE_TAG_VALUE;
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
 
 class UrlValidator implements UrlValidatorInterface, RequestMethodInterface
 {
@@ -86,7 +87,11 @@ class UrlValidator implements UrlValidatorInterface, RequestMethodInterface
                 RequestOptions::ALLOW_REDIRECTS => ['max' => self::MAX_REDIRECTS],
                 RequestOptions::IDN_CONVERSION => true,
                 // Making the request with a browser's user agent makes the validation closer to a real user
-                RequestOptions::HEADERS => ['User-Agent' => self::CHROME_USER_AGENT],
+                RequestOptions::HEADERS => [
+                    'User-Agent' => self::CHROME_USER_AGENT,
+                    // SWR-19123
+                    URL_VALIDATION_HEADER => '1',
+                ],
                 RequestOptions::STREAM => true, // This ensures large files are not fully downloaded if not needed
             ]);
         } catch (GuzzleException $e) {
