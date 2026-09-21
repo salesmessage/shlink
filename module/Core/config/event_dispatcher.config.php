@@ -6,6 +6,9 @@ namespace Shlinkio\Shlink\Core;
 
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Salesmessage\Streaming\Message\MessageFactoryInterface;
+use Salesmessage\Streaming\Producer\ProducerInterface;
+use Salesmessage\Streaming\Route\RouteInterface;
 use Shlinkio\Shlink\CLI\GeoLite\GeolocationDbUpdater;
 use Shlinkio\Shlink\Common\Cache\RedisPublishingHelper;
 use Shlinkio\Shlink\Common\Mercure\MercureHubPublishingHelper;
@@ -30,6 +33,7 @@ return [
             EventDispatcher\Event\VisitLocated::class => [
                 EventDispatcher\Mercure\NotifyVisitToMercure::class,
                 EventDispatcher\RabbitMq\NotifyVisitToRabbitMq::class,
+                EventDispatcher\Kafka\NotifyVisitToKafka::class,
                 EventDispatcher\RedisPubSub\NotifyVisitToRedis::class,
                 EventDispatcher\NotifyVisitToWebHooks::class,
                 EventDispatcher\UpdateGeoLiteDb::class,
@@ -50,6 +54,7 @@ return [
             EventDispatcher\Mercure\NotifyVisitToMercure::class => ConfigAbstractFactory::class,
             EventDispatcher\Mercure\NotifyNewShortUrlToMercure::class => ConfigAbstractFactory::class,
             EventDispatcher\RabbitMq\NotifyVisitToRabbitMq::class => ConfigAbstractFactory::class,
+            EventDispatcher\Kafka\NotifyVisitToKafka::class => ConfigAbstractFactory::class,
             EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq::class => ConfigAbstractFactory::class,
             EventDispatcher\RedisPubSub\NotifyVisitToRedis::class => ConfigAbstractFactory::class,
             EventDispatcher\RedisPubSub\NotifyNewShortUrlToRedis::class => ConfigAbstractFactory::class,
@@ -64,6 +69,9 @@ return [
                 EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
             ],
             EventDispatcher\RabbitMq\NotifyVisitToRabbitMq::class => [
+                EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
+            ],
+            EventDispatcher\Kafka\NotifyVisitToKafka::class => [
                 EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
             ],
             EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq::class => [
@@ -120,6 +128,16 @@ return [
             'Logger_Shlink',
             Visit\Transformer\OrphanVisitDataTransformer::class,
             Options\RabbitMqOptions::class,
+        ],
+        EventDispatcher\Kafka\NotifyVisitToKafka::class => [
+            ProducerInterface::class,
+            MessageFactoryInterface::class,
+            RouteInterface::class,
+            EventDispatcher\PublishingUpdatesGenerator::class,
+            'em',
+            'Logger_Shlink',
+            EventDispatcher\Kafka\DeliveryFailures::class,
+            'config.kafka.enabled',
         ],
         EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq::class => [
             RabbitMqPublishingHelper::class,

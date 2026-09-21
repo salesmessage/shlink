@@ -18,6 +18,8 @@ use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\Core\Visit\RequestTracker;
 use Shlinkio\Shlink\Core\Visit\VisitsTrackerInterface;
 
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
+
 class RequestTrackerTest extends TestCase
 {
     private const LONG_URL = 'https://domain.com/foo/bar?some=thing';
@@ -63,6 +65,9 @@ class RequestTrackerTest extends TestCase
             ImplicitHeadMiddleware::FORWARDED_HTTP_METHOD_ATTRIBUTE,
             RequestMethodInterface::METHOD_HEAD,
         )];
+        yield 'url validation header' => [
+            ServerRequestFactory::fromGlobals()->withHeader(URL_VALIDATION_HEADER, '1'),
+        ];
         yield 'disable track param' => [ServerRequestFactory::fromGlobals()->withQueryParams(['foobar' => 'foo'])];
         yield 'disable track param as null' => [
             ServerRequestFactory::fromGlobals()->withQueryParams(['foobar' => null]),

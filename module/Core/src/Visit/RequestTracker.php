@@ -22,6 +22,8 @@ use function Functional\some;
 use function implode;
 use function str_contains;
 
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
+
 class RequestTracker implements RequestTrackerInterface, RequestMethodInterface
 {
     public function __construct(
@@ -59,6 +61,11 @@ class RequestTracker implements RequestTrackerInterface, RequestMethodInterface
     {
         $forwardedMethod = $request->getAttribute(ImplicitHeadMiddleware::FORWARDED_HTTP_METHOD_ATTRIBUTE);
         if ($forwardedMethod === self::METHOD_HEAD) {
+            return false;
+        }
+
+        // SWR-19123
+        if ($request->hasHeader(URL_VALIDATION_HEADER)) {
             return false;
         }
 

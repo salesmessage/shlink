@@ -12,11 +12,14 @@ use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifier;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
 use Shlinkio\Shlink\Core\ShortUrl\Transformer\ShortUrlDataTransformer;
+use Shlinkio\Shlink\Core\Visit\DeviceClassifier;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
+use Shlinkio\Shlink\Core\Visit\Entity\VisitLocation;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
-use Shlinkio\Shlink\Core\Visit\Model\VisitsSummary;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Core\Visit\Transformer\OrphanVisitDataTransformer;
+use Shlinkio\Shlink\IpGeolocation\Model\Location;
 
 class PublishingUpdatesGeneratorTest extends TestCase
 {
@@ -53,7 +56,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'shortUrl' => 'http:/' . $shortUrl->getShortCode(),
                 'longUrl' => '',
                 'dateCreated' => $shortUrl->getDateCreated()->toAtomString(),
-                'visitsCount' => 0,
                 'tags' => [],
                 'meta' => [
                     'validSince' => null,
@@ -64,7 +66,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'title' => $title,
                 'crawlable' => false,
                 'forwardQuery' => true,
-                'visitsSummary' => VisitsSummary::fromTotalAndNonBots(0, 0),
             ],
             'visit' => [
                 'referer' => '',
@@ -72,6 +73,10 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'visitLocation' => null,
                 'date' => $visit->getDate()->toAtomString(),
                 'potentialBot' => false,
+                'id' => 0,
+                'visitedUrl' => '',
+                'deviceType' => DeviceClass::OTHER->value,
+                'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
             ],
         ], $update->payload);
     }
@@ -100,6 +105,9 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'potentialBot' => false,
                 'visitedUrl' => $orphanVisit->visitedUrl(),
                 'type' => $orphanVisit->type()->value,
+                'id' => 0,
+                'deviceType' => DeviceClass::OTHER->value,
+                'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
             ],
         ], $update->payload);
     }
@@ -130,7 +138,6 @@ class PublishingUpdatesGeneratorTest extends TestCase
             'shortUrl' => 'http:/' . $shortUrl->getShortCode(),
             'longUrl' => '',
             'dateCreated' => $shortUrl->getDateCreated()->toAtomString(),
-            'visitsCount' => 0,
             'tags' => [],
             'meta' => [
                 'validSince' => null,
@@ -141,7 +148,48 @@ class PublishingUpdatesGeneratorTest extends TestCase
             'title' => $shortUrl->title(),
             'crawlable' => false,
             'forwardQuery' => true,
-            'visitsSummary' => VisitsSummary::fromTotalAndNonBots(0, 0),
         ]], $update->payload);
+    }
+
+    /**
+     * @test
+     * @dataProvider provideVisitPublishingMethods
+     * @group spec:click-tracking:AC-11
+     */
+    public function publishedVisitCarriesEveryElementTheConsumerDependsOn(string $method): void
+    {
+        $shortUrl = ShortUrl::create(ShortUrlCreation::fromRawData([
+            'customSlug' => 'aB3xK',
+            'longUrl' => 'https://example.com/spring-sale',
+        ]));
+        $visitedUrl = 'https://sh.example.com/aB3xK?smg_domain=go.example.com&utm_sm_mid=90210';
+        $visit = Visit::forValidShortUrl($shortUrl, new Visitor(
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) Mobile/15E148 Safari/604.1',
+            '',
+            '1.2.3.4',
+            $visitedUrl,
+        ))->locate(VisitLocation::fromGeolocation(
+            new Location('CA', 'Canada', 'Ontario', 'Toronto', 43.6, -79.3, 'America/Toronto'),
+        ));
+        $visit->setId('918273');
+
+        $payload = $this->generator->{$method}($visit)->payload;
+        $serializedLocation = $payload['visit']['visitLocation']->jsonSerialize();
+
+        self::assertSame('aB3xK', $payload['shortUrl']['shortCode']);
+        self::assertArrayHasKey('domain', $payload['shortUrl']);
+        self::assertSame(918273, $payload['visit']['id']);
+        self::assertSame($visitedUrl, $payload['visit']['visitedUrl']);
+        self::assertStringContainsString('utm_sm_mid=90210', $payload['visit']['visitedUrl']);
+        self::assertSame(DeviceClass::MOBILE->value, $payload['visit']['deviceType']);
+        self::assertNull($payload['visit']['deviceTypeDetail']);
+        self::assertSame('CA', $serializedLocation['countryCode']);
+        self::assertSame('Canada', $serializedLocation['countryName']);
+    }
+
+    public function provideVisitPublishingMethods(): iterable
+    {
+        yield 'newVisitUpdate' => ['newVisitUpdate'];
+        yield 'newShortUrlVisitUpdate' => ['newShortUrlVisitUpdate'];
     }
 }
