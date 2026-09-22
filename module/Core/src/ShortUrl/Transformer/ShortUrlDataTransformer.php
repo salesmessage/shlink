@@ -20,8 +20,6 @@ class ShortUrlDataTransformer implements DataTransformerInterface
 
     /**
      * @param ShortUrl $shortUrl
-     * @param bool $withVisitsCount
-     * @return array
      */
     public function transform($shortUrl, bool $withVisitsCount = false): array // phpcs:ignore
     {
@@ -41,7 +39,7 @@ class ShortUrlDataTransformer implements DataTransformerInterface
         if ($withVisitsCount) {
             $visitsCount = $shortUrl->getVisitsCount();
 
-            $visitsCount['visitsSummary'] = VisitsSummary::fromTotalAndNonBots(
+            $data['visitsSummary'] = VisitsSummary::fromTotalAndNonBots(
                 $visitsCount,
                 $shortUrl->nonBotVisitsCount(),
             );
