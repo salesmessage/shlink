@@ -30,14 +30,14 @@ RUN apk add --no-cache --virtual .phpize-deps ${PHPIZE_DEPS} unixodbc-dev librdk
     if [ "$SHLINK_RUNTIME" == 'openswoole' ]; then \
         pecl install openswoole-${OPENSWOOLE_VERSION} && \
         docker-php-ext-enable openswoole ; \
-    fi; \
+    fi && \
     if [ $(uname -m) == "x86_64" ]; then \
       wget https://download.microsoft.com/download/${MS_ODBC_DOWNLOAD}/msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
       apk add --allow-untrusted msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
       pecl install pdo_sqlsrv-${PDO_SQLSRV_VERSION} && \
       docker-php-ext-enable pdo_sqlsrv && \
       rm msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk ; \
-    fi; \
+    fi && \
     apk del .phpize-deps
 
 # Install shlink
@@ -50,7 +50,7 @@ RUN apk add --no-cache git && \
         php composer.phar remove spiral/roadrunner spiral/roadrunner-jobs --with-all-dependencies --update-no-dev --optimize-autoloader --no-progress --no-interaction ; \
     elif [ $SHLINK_RUNTIME == 'rr' ]; then \
         php composer.phar remove mezzio/mezzio-swoole --with-all-dependencies --update-no-dev --optimize-autoloader --no-progress --no-interaction ; \
-    fi; \
+    fi && \
     php composer.phar clear-cache && \
     rm -r docker composer.* && \
     sed -i "s/%SHLINK_VERSION%/${SHLINK_VERSION}/g" config/autoload/app_options.global.php
