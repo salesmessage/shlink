@@ -33,7 +33,11 @@ final class Version20261104120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->skipIf($schema->hasTable(self::TABLE));
+        // No skip when the table exists: db:create builds it from the ORM mapping on a fresh database, and the
+        // scanner rows of postUp must be seeded there too
+        if ($schema->hasTable(self::TABLE)) {
+            return;
+        }
 
         $table = $schema->createTable(self::TABLE);
         $table->addColumn('id', Types::BIGINT, ['unsigned' => true, 'autoincrement' => true, 'notnull' => true]);
@@ -49,6 +53,14 @@ final class Version20261104120000 extends AbstractMigration
     {
         $now = Chronos::now()->toDateTimeString();
         foreach (self::SCANNER_ADDRESSES as $ip) {
+            $exists = $this->connection->fetchOne(
+                'SELECT COUNT(*) FROM ' . self::TABLE . ' WHERE ip = ? AND source = ?',
+                [$ip, 'scanner'],
+            );
+            if ((int) $exists > 0) {
+                continue;
+            }
+
             $this->connection->insert(self::TABLE, [
                 'ip' => $ip,
                 'source' => 'scanner',

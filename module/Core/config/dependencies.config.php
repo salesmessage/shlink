@@ -47,6 +47,10 @@ return [
                 EntityRepositoryFactory::class,
                 BotIp\Entity\BotIpRange::class,
             ],
+            Visit\Repository\BotReclassificationQuery::class => [
+                EntityRepositoryFactory::class,
+                Visit\Entity\Visit::class,
+            ],
 
             ShortUrl\UrlShortener::class => ConfigAbstractFactory::class,
             ShortUrl\ShortUrlService::class => ConfigAbstractFactory::class,
@@ -112,6 +116,8 @@ return [
             BotIp\BotIpMatcherInterface::class => BotIp\BotIpMatcher::class,
             BotIp\BotIpRangesUpdaterInterface::class => BotIp\BotIpRangesUpdater::class,
             BotIp\Repository\BotIpRangeRepositoryInterface::class => BotIp\Repository\BotIpRangeRepository::class,
+            Visit\Repository\BotReclassificationQueryInterface::class =>
+                Visit\Repository\BotReclassificationQuery::class,
             ImportedLinksProcessorInterface::class => Importer\ImportedLinksProcessor::class,
             MessageFactoryInterface::class => KafkaMessageFactory::class,
         ],
@@ -155,7 +161,7 @@ return [
             'Logger_Shlink',
         ],
         BotIp\VisitBotReclassifier::class => [
-            'em',
+            Visit\Repository\BotReclassificationQueryInterface::class,
             BotIp\BotIpMatcherInterface::class,
             Options\BotIpOptions::class,
         ],

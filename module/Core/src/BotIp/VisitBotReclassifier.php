@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\Core\BotIp;
 
 use Cake\Chronos\Chronos;
-use Doctrine\ORM\EntityManagerInterface;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 use Shlinkio\Shlink\Core\BotIp\Model\ReclassificationResult;
 use Shlinkio\Shlink\Core\Options\BotIpOptions;
-use Shlinkio\Shlink\Core\Visit\Entity\Visit;
+use Shlinkio\Shlink\Core\Visit\Repository\BotReclassificationQueryInterface;
 
 use function count;
 use function in_array;
+use function max;
 use function Shlinkio\Shlink\Core\isCrawler;
 
 /**
@@ -30,7 +30,7 @@ class VisitBotReclassifier
     private const RULE_SCANNER = 'scanner';
 
     public function __construct(
-        private readonly EntityManagerInterface $em,
+        private readonly BotReclassificationQueryInterface $query,
         private readonly BotIpMatcherInterface $matcher,
         private readonly BotIpOptions $options,
     ) {
@@ -47,10 +47,12 @@ class VisitBotReclassifier
         ?callable $onBatch = null,
     ): ReclassificationResult {
         $result = new ReclassificationResult();
-        $result->lastId = $fromId;
+        // Start at the first visit since the date: walking older ids first would read the whole history
+        $firstIdSince = $this->query->findFirstVisitIdSince($since);
+        $result->lastId = $firstIdSince === null ? $fromId : max($fromId, $firstIdSince - 1);
 
         do {
-            $visits = $this->nextBatch($since, $result->lastId, $batchSize);
+            $visits = $this->query->findUnflaggedShortUrlVisits($since, $result->lastId, $batchSize);
             $botIds = [];
             foreach ($visits as $visit) {
                 $result->lastId = (int) $visit['id'];
@@ -69,7 +71,7 @@ class VisitBotReclassifier
             }
 
             if (! $dryRun && ! empty($botIds)) {
-                $this->markAsBots($botIds);
+                $this->query->flagAsPotentialBots($botIds);
             }
 
             if ($onBatch !== null) {
@@ -98,42 +100,5 @@ class VisitBotReclassifier
         }
 
         return null;
-    }
-
-    /**
-     * @return array<array{id: string|int, userAgent: string|null, remoteAddr: string|null}>
-     */
-    private function nextBatch(Chronos $since, int $afterId, int $batchSize): array
-    {
-        /** @var array<array{id: string|int, userAgent: string|null, remoteAddr: string|null}> */
-        return $this->em->createQueryBuilder()
-            ->select('v.id', 'v.userAgent', 'v.remoteAddr')
-            ->from(Visit::class, 'v')
-            ->where('v.id > :afterId')
-            ->andWhere('v.shortUrl IS NOT NULL')
-            ->andWhere('v.potentialBot = :notBot')
-            ->andWhere('v.date >= :since')
-            ->setParameter('afterId', $afterId)
-            ->setParameter('notBot', false)
-            ->setParameter('since', $since)
-            ->orderBy('v.id', 'ASC')
-            ->setMaxResults($batchSize)
-            ->getQuery()
-            ->getArrayResult();
-    }
-
-    /**
-     * @param array<string|int> $ids
-     */
-    private function markAsBots(array $ids): void
-    {
-        $this->em->createQueryBuilder()
-            ->update(Visit::class, 'v')
-            ->set('v.potentialBot', ':bot')
-            ->where('v.id IN (:ids)')
-            ->setParameter('bot', true)
-            ->setParameter('ids', $ids)
-            ->getQuery()
-            ->execute();
     }
 }

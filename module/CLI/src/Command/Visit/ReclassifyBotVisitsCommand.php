@@ -41,7 +41,9 @@ class ReclassifyBotVisitsCommand extends AbstractLockedCommand
             ->setName(self::NAME)
             ->setDescription(
                 'Flags past visits to short URLs as potential bots when the current user agent rules or the bot IP '
-                . 'ranges match them. The flag is only set, never cleared.',
+                . 'ranges match them. The flag is only set, never cleared. An empty stored user agent counts as a '
+                . 'bot: if DISABLE_UA_TRACKING was on during the period, every visit matches, so run --dry-run first '
+                . 'and compare the "User agent" row with "Scanned".',
             )
             ->addOption('since', null, InputOption::VALUE_REQUIRED, 'Only visits on or after this date (Y-m-d)')
             ->addOption('from-id', null, InputOption::VALUE_REQUIRED, 'Resume after this visit id', '0')

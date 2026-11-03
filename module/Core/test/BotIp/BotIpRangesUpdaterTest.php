@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\BotIp;
 
 use Cake\Chronos\Chronos;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
@@ -108,6 +109,32 @@ class BotIpRangesUpdaterTest extends TestCase
         $this->httpClient->expects($this->never())->method('request');
 
         self::assertFalse($this->updater()->update()->updated);
+    }
+
+    /** @test */
+    public function listRefreshedByAnotherWorkerWhileWaitingIsNotDownloadedAgain(): void
+    {
+        $this->repo->method('findLastSeenAt')->willReturnOnConsecutiveCalls(null, Chronos::now());
+        $this->lock->method('acquire')->willReturn(true);
+        $this->httpClient->expects($this->never())->method('request');
+
+        self::assertFalse($this->updater()->updateIfStale()->updated);
+    }
+
+    /** @test */
+    public function rangesStoredByAnotherProcessAtTheSameTimeAreNotAnError(): void
+    {
+        $this->lock->method('acquire')->willReturn(true);
+        $this->respondWith([self::CRAWLERS => ['66.249.64.0/27'], self::FETCHERS => ['66.249.80.192/27']]);
+        $this->repo->method('findBySource')->willReturn([]);
+        $this->em->method('flush')->willThrowException($this->createStub(UniqueConstraintViolationException::class));
+        $this->logger->expects($this->once())->method('notice');
+        $this->logger->expects($this->never())->method('error');
+
+        $result = $this->updater()->update();
+
+        self::assertTrue($result->updated);
+        self::assertFalse($result->allSourcesFailed());
     }
 
     /**

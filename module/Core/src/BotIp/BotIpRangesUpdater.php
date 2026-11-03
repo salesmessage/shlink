@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\Core\BotIp;
 
 use Cake\Chronos\Chronos;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\RequestOptions;
@@ -47,10 +48,23 @@ class BotIpRangesUpdater implements BotIpRangesUpdaterInterface
 
     public function updateIfStale(): BotIpUpdateResult
     {
-        return $this->isStale() ? $this->update() : BotIpUpdateResult::skipped();
+        if (! $this->isStale()) {
+            return BotIpUpdateResult::skipped();
+        }
+
+        // Checked again under the lock: another worker may have refreshed the list in the meantime
+        return $this->withLock(fn () => $this->downloadAndStoreIfStillStale());
     }
 
     public function update(): BotIpUpdateResult
+    {
+        return $this->withLock(fn () => $this->downloadAndStore());
+    }
+
+    /**
+     * @param callable(): BotIpUpdateResult $update
+     */
+    private function withLock(callable $update): BotIpUpdateResult
     {
         // Another worker or pod is already downloading the list: there is nothing to wait for
         $lock = $this->locker->createLock(self::LOCK_NAME, self::LOCK_TTL);
@@ -59,10 +73,15 @@ class BotIpRangesUpdater implements BotIpRangesUpdaterInterface
         }
 
         try {
-            return $this->downloadAndStore();
+            return $update();
         } finally {
             $lock->release();
         }
+    }
+
+    private function downloadAndStoreIfStillStale(): BotIpUpdateResult
+    {
+        return $this->isStale() ? $this->downloadAndStore() : BotIpUpdateResult::skipped();
     }
 
     private function isStale(): bool
@@ -98,7 +117,14 @@ class BotIpRangesUpdater implements BotIpRangesUpdaterInterface
                 $added++;
             }
         }
-        $this->em->flush();
+        try {
+            $this->em->flush();
+        } catch (UniqueConstraintViolationException) {
+            // Without a shared lock store (no Redis) another pod can add the same ranges at the same moment:
+            // they are stored either way
+            $this->logger->notice('Bot IP ranges were stored by another process at the same time.');
+            return BotIpUpdateResult::updated(0, 0, $failedSources);
+        }
 
         return BotIpUpdateResult::updated($added, $refreshed, $failedSources);
     }
