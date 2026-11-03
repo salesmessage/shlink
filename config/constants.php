@@ -36,4 +36,10 @@ const BOT_USER_AGENT_FRAGMENTS = [
     'viberurldownloader',
     'line-poker',
     'signal-desktop',
+    // SWR-26047: non-browser clients seen on short URLs and not flagged, 2026-10-21..2026-11-03
+    'pcp-stier-sdk',
+    'antispam/',
+    'riskscanner/',
+    'google-safety',
+    'msie 8.0;',
 ];

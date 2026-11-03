@@ -185,6 +185,54 @@ class ClickTrackingTest extends TestCase
         yield 'Signal link preview' => ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Signal-Desktop/6.42.0'];
     }
 
+    /**
+     * @test
+     * @dataProvider provideUnflaggedNonBrowserUserAgents
+     */
+    public function nonBrowserClientSeenOnShortUrlsIsRecordedAsPotentialBot(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+
+        self::assertTrue($visit->jsonSerialize()['potentialBot']);
+    }
+
+    /**
+     * SWR-26047: clients seen on short URLs between 2026-10-21 and 2026-11-03 that were not flagged.
+     */
+    public static function provideUnflaggedNonBrowserUserAgents(): iterable
+    {
+        yield 'pcp-stier-sdk' => ['pcp-stier-sdk/1.5.1 na/na'];
+        yield 'antispam' => ['antispam/1.0.0'];
+        yield 'RiskScanner' => ['RiskScanner/1.0'];
+        yield 'Google-Safety' => ['Google-Safety'];
+        yield 'IE8' => ['Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; WOW64; Trident/4.0)'];
+        yield 'empty' => [''];
+        yield 'blank' => ['   '];
+    }
+
+    /**
+     * @test
+     * @dataProvider provideAppsPeopleOpenLinksWith
+     */
+    public function appPeopleOpenLinksWithIsNotRecordedAsPotentialBot(string $userAgent): void
+    {
+        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor($userAgent, '', null, ''));
+
+        self::assertFalse($visit->jsonSerialize()['potentialBot']);
+    }
+
+    /**
+     * SWR-26047: left out of the bot rules on purpose, people may be behind them.
+     */
+    public static function provideAppsPeopleOpenLinksWith(): iterable
+    {
+        yield 'TextFree' => ['textfreeUltra 13.28.1'];
+        yield 'Google Lens' => ['Google-Lens'];
+        yield 'Android app' => ['Dalvik/2.1.0 (Linux; U; Android 13; SM-A326U Build/TP1A.220624.014)'];
+        // The scanner's Windows user agent is a real browser on its own: only its addresses make it a bot
+        yield 'Firefox 115' => ['Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0'];
+    }
+
     public static function provideOrdinaryBrowserUserAgents(): iterable
     {
         yield 'desktop' => [self::BROWSER_USER_AGENT];

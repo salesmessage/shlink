@@ -18,6 +18,7 @@ use Shlinkio\Shlink\Core\Options\NotFoundRedirectOptions;
 use Shlinkio\Shlink\Core\ShortUrl\Repository\CrawlableShortCodesQuery;
 use Shlinkio\Shlink\Importer\ImportedLinksProcessorInterface;
 use Shlinkio\Shlink\IpGeolocation\Resolver\IpLocationResolverInterface;
+use Symfony\Component\Lock\LockFactory;
 
 return [
 
@@ -37,6 +38,15 @@ return [
             Options\QrCodeOptions::class => [ValinorConfigFactory::class, 'config.qr_codes'],
             Options\RabbitMqOptions::class => [ValinorConfigFactory::class, 'config.rabbitmq'],
             Options\WebhookOptions::class => ConfigAbstractFactory::class,
+            Options\BotIpOptions::class => [ValinorConfigFactory::class, 'config.bot_ips'],
+
+            BotIp\BotIpMatcher::class => ConfigAbstractFactory::class,
+            BotIp\BotIpRangesUpdater::class => ConfigAbstractFactory::class,
+            BotIp\VisitBotReclassifier::class => ConfigAbstractFactory::class,
+            BotIp\Repository\BotIpRangeRepository::class => [
+                EntityRepositoryFactory::class,
+                BotIp\Entity\BotIpRange::class,
+            ],
 
             ShortUrl\UrlShortener::class => ConfigAbstractFactory::class,
             ShortUrl\ShortUrlService::class => ConfigAbstractFactory::class,
@@ -99,6 +109,9 @@ return [
         ],
 
         'aliases' => [
+            BotIp\BotIpMatcherInterface::class => BotIp\BotIpMatcher::class,
+            BotIp\BotIpRangesUpdaterInterface::class => BotIp\BotIpRangesUpdater::class,
+            BotIp\Repository\BotIpRangeRepositoryInterface::class => BotIp\Repository\BotIpRangeRepository::class,
             ImportedLinksProcessorInterface::class => Importer\ImportedLinksProcessor::class,
             MessageFactoryInterface::class => KafkaMessageFactory::class,
         ],
@@ -126,6 +139,25 @@ return [
             'em',
             EventDispatcherInterface::class,
             Options\TrackingOptions::class,
+            BotIp\BotIpMatcherInterface::class,
+        ],
+        BotIp\BotIpMatcher::class => [
+            BotIp\Repository\BotIpRangeRepositoryInterface::class,
+            Options\BotIpOptions::class,
+            'Logger_Shlink',
+        ],
+        BotIp\BotIpRangesUpdater::class => [
+            'httpClient',
+            'em',
+            BotIp\Repository\BotIpRangeRepositoryInterface::class,
+            LockFactory::class,
+            Options\BotIpOptions::class,
+            'Logger_Shlink',
+        ],
+        BotIp\VisitBotReclassifier::class => [
+            'em',
+            BotIp\BotIpMatcherInterface::class,
+            Options\BotIpOptions::class,
         ],
         Visit\RequestTracker::class => [Visit\VisitsTracker::class, Options\TrackingOptions::class],
         ShortUrl\ShortUrlService::class => [
