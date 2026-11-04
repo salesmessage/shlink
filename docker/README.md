@@ -32,18 +32,3 @@ docker run \
 All the features supported by Shlink are also supported by the docker image.
 
 If you want to learn more, visit the [full documentation](https://shlink.io/documentation/install-docker-image/).
-
-## Test stack
-
-`docker-compose.testing.yml`, `php-cli.Dockerfile` and `test.sh` run the unit suite of this fork in Docker, the way
-the SalesMessage agent tooling (`sm-tests`) runs it. `./indocker_test` (see `AGENTS.md`) does the same for people.
-
-```bash
-sh docker/test.sh                                         # composer test:unit
-sh docker/test.sh composer test:unit -- --filter=VisitorTest
-sh docker/test.sh composer stan
-```
-
-It needs Docker with Compose v2 and, for the private `salesmessage/*` packages, `NODE_AUTH_TOKEN` (or `COMPOSER_AUTH`)
-in the environment. The image tag in the compose file is `sm-testing-php:<version>-<hash of php-cli.Dockerfile>`;
-change the Dockerfile and the tag together. The stack is removed after every run.
