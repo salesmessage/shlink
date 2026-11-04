@@ -40,7 +40,6 @@ class ReclassifyBotVisitsCommandTest extends TestCase
         $result->scanned = 50;
         $result->byUserAgent = 1;
         $result->byGoogleNetwork = 20;
-        $result->byScanner = 3;
         $result->lastId = 1234;
         $this->lock->method('acquire')->willReturn(true);
         $this->reclassifier->expects($this->once())->method('reclassify')->with(
@@ -61,7 +60,7 @@ class ReclassifyBotVisitsCommandTest extends TestCase
 
         self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
         self::assertStringContainsString('Google network', $output);
-        self::assertStringContainsString('24', $output);
+        self::assertStringContainsString('21', $output);
         self::assertStringContainsString('Dry run, nothing was changed.', $output);
         self::assertStringContainsString('Last visit id: 1234', $output);
     }

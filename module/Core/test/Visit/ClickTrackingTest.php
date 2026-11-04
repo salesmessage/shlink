@@ -229,7 +229,6 @@ class ClickTrackingTest extends TestCase
         yield 'TextFree' => ['textfreeUltra 13.28.1'];
         yield 'Google Lens' => ['Google-Lens'];
         yield 'Android app' => ['Dalvik/2.1.0 (Linux; U; Android 13; SM-A326U Build/TP1A.220624.014)'];
-        // The scanner's Windows user agent is a real browser on its own: only its addresses make it a bot
         yield 'Firefox 115' => ['Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0'];
     }
 

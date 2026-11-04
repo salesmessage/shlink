@@ -21,14 +21,6 @@ return [
 
         // How often a worker re-reads the ranges from the database and checks whether the list is stale
         'check_interval_seconds' => 600,
-
-        // The two user agents of the link scanner whose addresses are seeded as the `scanner` source. Used only by
-        // visit:reclassify-bots, where stored addresses are anonymized to a /24 shared with real subscribers.
-        'scanner_user_agents' => [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0',
-            'Mozilla/5.0 (Linux; Android 12; SM-N960U) AppleWebKit/541.06 (KHTML, like Gecko) '
-                . 'Chrome/111.0.5563.57 Mobile Safari/541.06',
-        ],
     ],
 
 ];

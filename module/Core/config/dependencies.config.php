@@ -163,7 +163,6 @@ return [
         BotIp\VisitBotReclassifier::class => [
             Visit\Repository\BotReclassificationQueryInterface::class,
             BotIp\BotIpMatcherInterface::class,
-            Options\BotIpOptions::class,
         ],
         Visit\RequestTracker::class => [Visit\VisitsTracker::class, Options\TrackingOptions::class],
         ShortUrl\ShortUrlService::class => [

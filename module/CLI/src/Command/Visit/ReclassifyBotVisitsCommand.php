@@ -84,7 +84,6 @@ class ReclassifyBotVisitsCommand extends AbstractLockedCommand
         $io->table(['Rule', 'Visits'], [
             ['User agent', $result->byUserAgent],
             ['Google network', $result->byGoogleNetwork],
-            ['Scanner network and user agent', $result->byScanner],
             ['Total flagged', $result->marked()],
             ['Scanned', $result->scanned],
         ]);

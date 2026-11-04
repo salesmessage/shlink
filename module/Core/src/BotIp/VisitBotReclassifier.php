@@ -7,32 +7,26 @@ namespace Shlinkio\Shlink\Core\BotIp;
 use Cake\Chronos\Chronos;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 use Shlinkio\Shlink\Core\BotIp\Model\ReclassificationResult;
-use Shlinkio\Shlink\Core\Options\BotIpOptions;
 use Shlinkio\Shlink\Core\Visit\Repository\BotReclassificationQueryInterface;
 
 use function count;
-use function in_array;
 use function max;
 use function Shlinkio\Shlink\Core\isCrawler;
 
 /**
  * One-off pass over past visits to short URLs, flagging as potential bots the ones today's rules would flag. Stored
- * addresses keep only their /24 network, so the address rules work on that network:
- * - Google: the network overlaps a Google range; those networks belong to Google as a whole.
- * - Scanner: the network of a seeded scanner address AND one of the scanner's exact user agents, because those
- *   networks are shared with real mobile subscribers.
+ * addresses keep only their /24 network, so the address rule works on that network: it overlaps a Google range, and
+ * those networks belong to Google as a whole.
  * The flag is only ever set, never cleared.
  */
 class VisitBotReclassifier
 {
     private const RULE_USER_AGENT = 'user_agent';
     private const RULE_GOOGLE_NETWORK = 'google_network';
-    private const RULE_SCANNER = 'scanner';
 
     public function __construct(
         private readonly BotReclassificationQueryInterface $query,
         private readonly BotIpMatcherInterface $matcher,
-        private readonly BotIpOptions $options,
     ) {
     }
 
@@ -62,7 +56,6 @@ class VisitBotReclassifier
                 match ($rule) {
                     self::RULE_USER_AGENT => $result->byUserAgent++,
                     self::RULE_GOOGLE_NETWORK => $result->byGoogleNetwork++,
-                    self::RULE_SCANNER => $result->byScanner++,
                     default => null,
                 };
                 if ($rule !== null) {
@@ -90,13 +83,6 @@ class VisitBotReclassifier
 
         if ($this->matcher->isInBotNetwork($remoteAddr, BotIpSource::GOOGLE)) {
             return self::RULE_GOOGLE_NETWORK;
-        }
-
-        if (
-            in_array($userAgent, $this->options->scannerUserAgents, true)
-            && $this->matcher->isInBotNetwork($remoteAddr, BotIpSource::SCANNER)
-        ) {
-            return self::RULE_SCANNER;
         }
 
         return null;

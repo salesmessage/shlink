@@ -11,7 +11,6 @@ use Shlinkio\Shlink\Core\BotIp\BotIpMatcherInterface;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 use Shlinkio\Shlink\Core\BotIp\Model\ReclassificationResult;
 use Shlinkio\Shlink\Core\BotIp\VisitBotReclassifier;
-use Shlinkio\Shlink\Core\Options\BotIpOptions;
 use Shlinkio\Shlink\Core\Visit\Repository\BotReclassificationQueryInterface;
 
 use function array_map;
@@ -20,7 +19,7 @@ use function array_values;
 
 class VisitBotReclassifierTest extends TestCase
 {
-    private const SCANNER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0';
+    private const FIREFOX_115 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0';
     private const LINUX_CHROME = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
         . 'Chrome/141.0.0.0 Safari/537.36';
 
@@ -54,10 +53,7 @@ class VisitBotReclassifierTest extends TestCase
 
         $this->matcher = $this->createMock(BotIpMatcherInterface::class);
         $this->matcher->method('isInBotNetwork')->willReturnCallback(
-            static fn (?string $address, BotIpSource $source) => match ($source) {
-                BotIpSource::GOOGLE => $address === '66.249.80.0',
-                BotIpSource::SCANNER => $address === '203.127.145.0',
-            },
+            static fn (?string $address, BotIpSource $source) => $address === '66.249.80.0',
         );
     }
 
@@ -67,22 +63,19 @@ class VisitBotReclassifierTest extends TestCase
         $this->visits = [
             ['id' => 1, 'userAgent' => 'pcp-stier-sdk/1.5.1', 'remoteAddr' => '73.109.12.0'],
             ['id' => 2, 'userAgent' => self::LINUX_CHROME, 'remoteAddr' => '66.249.80.0'],
-            ['id' => 3, 'userAgent' => self::SCANNER_UA, 'remoteAddr' => '203.127.145.0'],
-            // A person in the scanner's network, on another browser
-            ['id' => 4, 'userAgent' => self::LINUX_CHROME, 'remoteAddr' => '203.127.145.0'],
-            // The scanner's user agent elsewhere is a person
-            ['id' => 5, 'userAgent' => self::SCANNER_UA, 'remoteAddr' => '73.109.12.0'],
-            ['id' => 6, 'userAgent' => self::LINUX_CHROME, 'remoteAddr' => null],
+            // The link scanner of broadcast 696615 is not an obvious bot: it passes as a person
+            ['id' => 3, 'userAgent' => self::FIREFOX_115, 'remoteAddr' => '203.127.145.0'],
+            ['id' => 4, 'userAgent' => self::LINUX_CHROME, 'remoteAddr' => '73.109.12.0'],
+            ['id' => 5, 'userAgent' => self::LINUX_CHROME, 'remoteAddr' => null],
         ];
 
         $result = $this->reclassifier()->reclassify(Chronos::create(2026, 9, 22), 0, 100, false);
 
         self::assertEquals(1, $result->byUserAgent);
         self::assertEquals(1, $result->byGoogleNetwork);
-        self::assertEquals(1, $result->byScanner);
-        self::assertEquals(6, $result->scanned);
-        self::assertEquals(6, $result->lastId);
-        self::assertEquals([[1, 2, 3]], $this->flaggedIds);
+        self::assertEquals(5, $result->scanned);
+        self::assertEquals(5, $result->lastId);
+        self::assertEquals([[1, 2]], $this->flaggedIds);
     }
 
     /** @test */
@@ -142,8 +135,6 @@ class VisitBotReclassifierTest extends TestCase
 
     private function reclassifier(): VisitBotReclassifier
     {
-        return new VisitBotReclassifier($this->query, $this->matcher, new BotIpOptions(scannerUserAgents: [
-            self::SCANNER_UA,
-        ]));
+        return new VisitBotReclassifier($this->query, $this->matcher);
     }
 }

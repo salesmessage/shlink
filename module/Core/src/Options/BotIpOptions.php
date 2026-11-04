@@ -11,8 +11,6 @@ final class BotIpOptions
         public readonly array $googleSources = [],
         public readonly int $refreshAfterDays = 7,
         public readonly int $checkIntervalSeconds = 600,
-        /** @var string[] */
-        public readonly array $scannerUserAgents = [],
     ) {
     }
 }

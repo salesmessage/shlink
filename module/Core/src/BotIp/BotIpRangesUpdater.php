@@ -28,7 +28,7 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * Ranges are only added or marked as seen again, never removed: a list that comes back short for a while must not
- * turn bots back into clicks. Ranges of other sources (the hand-seeded scanner) are never touched.
+ * turn bots back into clicks. Ranges of other sources are never touched.
  */
 class BotIpRangesUpdater implements BotIpRangesUpdaterInterface
 {
