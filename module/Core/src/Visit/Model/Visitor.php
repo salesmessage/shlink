@@ -66,6 +66,17 @@ final class Visitor
         return $this->potentialBot;
     }
 
+    /**
+     * SWR-26047: a visit from a known bot address is a bot whatever its user agent claims.
+     */
+    public function markAsPotentialBot(): self
+    {
+        $instance = clone $this;
+        $instance->potentialBot = true;
+
+        return $instance;
+    }
+
     public function normalizeForTrackingOptions(TrackingOptions $options): self
     {
         $instance = new self(

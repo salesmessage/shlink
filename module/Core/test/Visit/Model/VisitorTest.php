@@ -96,4 +96,18 @@ class VisitorTest extends TestCase
         self::assertNull($normalizedVisitor->remoteAddress);
         self::assertNotNull($visitor->remoteAddress);
     }
+
+    /** @test */
+    public function markingAsPotentialBotKeepsTheRestAndSurvivesNormalization(): void
+    {
+        $visitor = new Visitor('Mozilla/5.0 (X11; Linux x86_64) Chrome/141.0.0.0', 'ref', '66.249.80.201', 'url');
+        $bot = $visitor->markAsPotentialBot();
+
+        self::assertFalse($visitor->isPotentialBot());
+        self::assertTrue($bot->isPotentialBot());
+        self::assertEquals($visitor->userAgent, $bot->userAgent);
+        self::assertEquals($visitor->remoteAddress, $bot->remoteAddress);
+        $normalized = $bot->normalizeForTrackingOptions(new TrackingOptions(disableUaTracking: true));
+        self::assertTrue($normalized->isPotentialBot());
+    }
 }

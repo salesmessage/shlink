@@ -72,7 +72,8 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'userAgent' => '',
                 'visitLocation' => null,
                 'date' => $visit->getDate()->toAtomString(),
-                'potentialBot' => false,
+                // SWR-26047: an empty user agent is a bot
+                'potentialBot' => true,
                 'id' => 0,
                 'visitedUrl' => '',
                 'deviceType' => DeviceClass::OTHER->value,
@@ -102,7 +103,8 @@ class PublishingUpdatesGeneratorTest extends TestCase
                 'userAgent' => '',
                 'visitLocation' => null,
                 'date' => $orphanVisit->getDate()->toAtomString(),
-                'potentialBot' => false,
+                // SWR-26047: an empty user agent is a bot
+                'potentialBot' => true,
                 'visitedUrl' => $orphanVisit->visitedUrl(),
                 'type' => $orphanVisit->type()->value,
                 'id' => 0,

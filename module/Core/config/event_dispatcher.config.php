@@ -13,6 +13,7 @@ use Shlinkio\Shlink\CLI\GeoLite\GeolocationDbUpdater;
 use Shlinkio\Shlink\Common\Cache\RedisPublishingHelper;
 use Shlinkio\Shlink\Common\Mercure\MercureHubPublishingHelper;
 use Shlinkio\Shlink\Common\RabbitMq\RabbitMqPublishingHelper;
+use Shlinkio\Shlink\Core\BotIp\BotIpRangesUpdaterInterface;
 use Shlinkio\Shlink\Core\Visit\Geolocation\VisitLocator;
 use Shlinkio\Shlink\Core\Visit\Geolocation\VisitToLocationHelper;
 use Shlinkio\Shlink\IpGeolocation\GeoLite2\DbUpdater;
@@ -37,6 +38,7 @@ return [
                 EventDispatcher\RedisPubSub\NotifyVisitToRedis::class,
                 EventDispatcher\NotifyVisitToWebHooks::class,
                 EventDispatcher\UpdateGeoLiteDb::class,
+                EventDispatcher\UpdateBotIpRanges::class,
             ],
             EventDispatcher\Event\ShortUrlCreated::class => [
                 EventDispatcher\Mercure\NotifyNewShortUrlToMercure::class,
@@ -59,6 +61,7 @@ return [
             EventDispatcher\RedisPubSub\NotifyVisitToRedis::class => ConfigAbstractFactory::class,
             EventDispatcher\RedisPubSub\NotifyNewShortUrlToRedis::class => ConfigAbstractFactory::class,
             EventDispatcher\UpdateGeoLiteDb::class => ConfigAbstractFactory::class,
+            EventDispatcher\UpdateBotIpRanges::class => ConfigAbstractFactory::class,
         ],
 
         'delegators' => [
@@ -87,6 +90,9 @@ return [
                 EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
             ],
             EventDispatcher\NotifyVisitToWebHooks::class => [
+                EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
+            ],
+            EventDispatcher\UpdateBotIpRanges::class => [
                 EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
             ],
         ],
@@ -164,6 +170,11 @@ return [
             GeolocationDbUpdater::class,
             'Logger_Shlink',
             EventDispatcherInterface::class,
+        ],
+        EventDispatcher\UpdateBotIpRanges::class => [
+            BotIpRangesUpdaterInterface::class,
+            Options\BotIpOptions::class,
+            'Logger_Shlink',
         ],
     ],
 
