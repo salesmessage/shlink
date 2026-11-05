@@ -45,7 +45,8 @@ class OrphanVisitDataTransformerTest extends TestCase
                 'date' => $visit->getDate()->toAtomString(),
                 'userAgent' => '',
                 'visitLocation' => null,
-                'potentialBot' => false,
+                // SWR-26047: an empty user agent is a bot
+                'potentialBot' => true,
                 'visitedUrl' => '',
                 'type' => VisitType::BASE_URL->value,
                 'id' => 0,
