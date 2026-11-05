@@ -9,6 +9,7 @@ use GeoIp2\Database\Reader;
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
 use Laminas\ServiceManager\Factory\InvokableFactory;
 use Shlinkio\Shlink\Common\Doctrine\NoDbNameConnectionFactory;
+use Shlinkio\Shlink\Core\BotIp;
 use Shlinkio\Shlink\Core\Domain\DomainService;
 use Shlinkio\Shlink\Core\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\Options\UrlShortenerOptions;
@@ -48,6 +49,8 @@ return [
             Command\Visit\LocateVisitsCommand::class => ConfigAbstractFactory::class,
             Command\Visit\GetOrphanVisitsCommand::class => ConfigAbstractFactory::class,
             Command\Visit\GetNonOrphanVisitsCommand::class => ConfigAbstractFactory::class,
+            Command\Visit\DownloadBotIpsCommand::class => ConfigAbstractFactory::class,
+            Command\Visit\ReclassifyBotVisitsCommand::class => ConfigAbstractFactory::class,
 
             Command\Api\GenerateKeyCommand::class => ConfigAbstractFactory::class,
             Command\Api\DisableKeyCommand::class => ConfigAbstractFactory::class,
@@ -101,6 +104,8 @@ return [
         ],
         Command\Visit\GetOrphanVisitsCommand::class => [Visit\VisitsStatsHelper::class],
         Command\Visit\GetNonOrphanVisitsCommand::class => [Visit\VisitsStatsHelper::class, ShortUrlStringifier::class],
+        Command\Visit\DownloadBotIpsCommand::class => [BotIp\BotIpRangesUpdaterInterface::class],
+        Command\Visit\ReclassifyBotVisitsCommand::class => [BotIp\VisitBotReclassifier::class, LockFactory::class],
 
         Command\Api\GenerateKeyCommand::class => [ApiKeyService::class, ApiKey\RoleResolver::class],
         Command\Api\DisableKeyCommand::class => [ApiKeyService::class],

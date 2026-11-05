@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Shlinkio\Shlink\Core\BotIp\BotIpMatcherInterface;
 use Shlinkio\Shlink\Core\EventDispatcher\Event\UrlVisited;
 use Shlinkio\Shlink\Core\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
@@ -19,11 +20,13 @@ class VisitsTrackerTest extends TestCase
 {
     private MockObject & EntityManager $em;
     private MockObject & EventDispatcherInterface $eventDispatcher;
+    private MockObject & BotIpMatcherInterface $botIpMatcher;
 
     protected function setUp(): void
     {
         $this->em = $this->createMock(EntityManager::class);
         $this->eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $this->botIpMatcher = $this->createMock(BotIpMatcherInterface::class);
     }
 
     /**
@@ -84,8 +87,48 @@ class VisitsTrackerTest extends TestCase
         yield 'trackRegularNotFoundVisit' => ['trackRegularNotFoundVisit'];
     }
 
+    /**
+     * @test
+     * @dataProvider provideBotAddressMatches
+     */
+    public function visitFromBotAddressIsRecordedAsPotentialBot(bool $isBotAddress, bool $expectedPotentialBot): void
+    {
+        $linuxChrome = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 '
+            . 'Safari/537.36';
+        $this->botIpMatcher->expects($this->once())->method('isBotAddress')->with('66.249.80.201')->willReturn(
+            $isBotAddress,
+        );
+        $this->em->expects($this->once())->method('persist')->with($this->callback(
+            fn (Visit $visit) => $visit->jsonSerialize()['potentialBot'] === $expectedPotentialBot,
+        ));
+
+        $this->visitsTracker()->track(ShortUrl::createEmpty(), new Visitor($linuxChrome, '', '66.249.80.201', ''));
+    }
+
+    public function provideBotAddressMatches(): iterable
+    {
+        yield 'Google fetcher posing as Linux Chrome' => [true, true];
+        yield 'person on Linux Chrome' => [false, false];
+    }
+
+    /** @test */
+    public function addressIsNotCheckedForVisitAlreadyFlaggedByUserAgent(): void
+    {
+        $this->botIpMatcher->expects($this->never())->method('isBotAddress');
+        $this->em->expects($this->once())->method('persist')->with($this->callback(
+            fn (Visit $visit) => $visit->jsonSerialize()['potentialBot'] === true,
+        ));
+
+        $this->visitsTracker()->track(ShortUrl::createEmpty(), new Visitor('cf-facebook', '', '1.2.3.4', ''));
+    }
+
     private function visitsTracker(?TrackingOptions $options = null): VisitsTracker
     {
-        return new VisitsTracker($this->em, $this->eventDispatcher, $options ?? new TrackingOptions());
+        return new VisitsTracker(
+            $this->em,
+            $this->eventDispatcher,
+            $options ?? new TrackingOptions(),
+            $this->botIpMatcher,
+        );
     }
 }

@@ -24,6 +24,7 @@ use function sprintf;
 use function str_contains;
 use function str_repeat;
 use function strtolower;
+use function trim;
 use function ucfirst;
 
 use const Shlinkio\Shlink\BOT_USER_AGENT_FRAGMENTS;
@@ -109,6 +110,11 @@ function arrayToString(array $array, int $indentSize = 4): string
 
 function isCrawler(string $userAgent): bool
 {
+    // SWR-26047: browsers and apps always send a user agent; an empty one is a script
+    if (trim($userAgent) === '') {
+        return true;
+    }
+
     $lowercasedUserAgent = strtolower($userAgent);
     foreach (BOT_USER_AGENT_FRAGMENTS as $fragment) {
         if (str_contains($lowercasedUserAgent, $fragment)) {
