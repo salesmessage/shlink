@@ -12,6 +12,9 @@ ENV LC_ALL "C"
 
 WORKDIR /etc/shlink
 
+# Pull in OS security fixes even if the pinned php base image is stale (SO-25021)
+RUN apk upgrade --no-cache
+
 # Install required PHP extensions
 RUN \
     # Temp install dev dependencies needed to compile the extensions
@@ -52,7 +55,8 @@ RUN apk add --no-cache git && \
         php composer.phar remove mezzio/mezzio-swoole --with-all-dependencies --update-no-dev --optimize-autoloader --no-progress --no-interaction ; \
     fi && \
     php composer.phar clear-cache && \
-    rm -r docker composer.* && \
+    # don't ship Jenkins' composer credentials (auth.json) in the final image (SO-25021)
+    rm -rf docker composer.* auth.json && \
     sed -i "s/%SHLINK_VERSION%/${SHLINK_VERSION}/g" config/autoload/app_options.global.php
 
 
