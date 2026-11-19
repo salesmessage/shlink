@@ -28,6 +28,7 @@ return [
             ErrorHandler\NotFoundTrackerMiddleware::class => ConfigAbstractFactory::class,
             ErrorHandler\NotFoundRedirectHandler::class => ConfigAbstractFactory::class,
             ErrorHandler\NotFoundTemplateHandler::class => InvokableFactory::class,
+            ErrorHandler\VendorDeprecationsMiddleware::class => InvokableFactory::class,
 
             Options\AppOptions::class => [ValinorConfigFactory::class, 'config.app_options'],
             Options\DeleteShortUrlsOptions::class => [ValinorConfigFactory::class, 'config.delete_short_urls'],

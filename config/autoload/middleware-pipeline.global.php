@@ -19,6 +19,7 @@ return [
                 ContentLengthMiddleware::class,
                 RequestIdMiddleware::class,
                 ErrorHandler::class,
+                Core\ErrorHandler\VendorDeprecationsMiddleware::class,
                 Rest\Middleware\CrossDomainMiddleware::class,
             ],
         ],

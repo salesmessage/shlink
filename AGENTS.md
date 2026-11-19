@@ -20,7 +20,7 @@ These guidelines are tool-agnostic (Claude Code, other AI agents, and humans). T
 
 This fork runs **one test suite: unit** (`module/*/test`, `phpunit.xml.dist`). Upstream's api, db and cli suites, their phpunit/infection configs, bootstraps, fixtures and composer scripts have been removed, and so have the CI jobs that ran them. Do not add a `test-api`, `test-db` or `test-cli` directory back; a behaviour that needs a database or a live HTTP server gets covered as a unit test with the collaborators mocked.
 
-`./indocker_test [options] [target] [args...]` runs everything in a throwaway `sm-php-cli:8.3` container - no `docker-compose`, no database.
+`./indocker_test [options] [target] [args...]` runs everything in a throwaway `sm-php-cli:8.4` container - no `docker-compose`, no database.
 
 ```bash
 ./indocker_test                                    # composer test:unit

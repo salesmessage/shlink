@@ -13,7 +13,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PHP_VER="${PHP_VER:-8.3}"
+PHP_VER="${PHP_VER:-8.4}"
 IMAGE="${IMAGE:-}"
 NETWORK="${NETWORK:-}"
 ENV_FILE="${ENV_FILE:-}"
