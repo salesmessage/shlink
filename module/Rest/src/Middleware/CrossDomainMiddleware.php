@@ -38,9 +38,9 @@ class CrossDomainMiddleware implements MiddlewareInterface, RequestMethodInterfa
     private function addOptionsHeaders(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $corsHeaders = [
-            'Access-Control-Allow-Methods' => $this->resolveCorsAllowedMethods($response),
-            'Access-Control-Allow-Headers' => $request->getHeaderLine('Access-Control-Request-Headers'),
-            'Access-Control-Max-Age' => $this->config['max_age'],
+            'Access-Control-Allow-Methods' => [$this->resolveCorsAllowedMethods($response)],
+            'Access-Control-Allow-Headers' => [$request->getHeaderLine('Access-Control-Request-Headers')],
+            'Access-Control-Max-Age' => [(string) $this->config['max_age']],
         ];
 
         // Options requests should always be empty and have a 204 status code
