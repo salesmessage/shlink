@@ -44,11 +44,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup PHP 8.3
+      - name: Setup PHP 8.4
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
-          php-version: '8.3'
-          # Mirrors sm-php-cli:8.3, the image ./indocker_test runs the same suite in
+          php-version: '8.4'
+          # Mirrors sm-php-cli:8.4, the image ./indocker_test runs the same suite in
           extensions: curl, gd, mbstring, pdo, pdo_pgsql, pdo_sqlite, redis, sockets, sodium, zip
           coverage: none
 
@@ -60,8 +60,8 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-php8.3-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-php8.3-
+          key: composer-${{ runner.os }}-php8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.4-
 
       - name: Install dependencies
         env:
