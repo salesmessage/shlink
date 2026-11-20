@@ -6404,16 +6404,16 @@
         },
         {
             "name": "salesmessage/streaming",
-            "version": "v4.0.0",
+            "version": "v4.0.1",
             "source": {
                 "type": "git",
                 "url": "git@github.com:salesmessage/php-lib-streaming.git",
-                "reference": "3dac5d0e00c498c226d9b27db224e026b69e52a4"
+                "reference": "a1b0aaa5b5797159ced64aaabb7c945c9ea6725b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/salesmessage/php-lib-streaming/zipball/3dac5d0e00c498c226d9b27db224e026b69e52a4",
-                "reference": "3dac5d0e00c498c226d9b27db224e026b69e52a4",
+                "url": "https://api.github.com/repos/salesmessage/php-lib-streaming/zipball/a1b0aaa5b5797159ced64aaabb7c945c9ea6725b",
+                "reference": "a1b0aaa5b5797159ced64aaabb7c945c9ea6725b",
                 "shasum": ""
             },
             "require": {
@@ -6460,9 +6460,9 @@
             ],
             "description": "Aimed at unifying the use of event streams and queues.",
             "support": {
-                "source": "https://github.com/salesmessage/php-lib-streaming/tree/v4.0.0"
+                "source": "https://github.com/salesmessage/php-lib-streaming/tree/v4.0.1"
             },
-            "time": "2026-08-28T18:19:37+00:00"
+            "time": "2026-11-20T16:19:28+00:00"
         },
         {
             "name": "shlinkio/shlink-common",
