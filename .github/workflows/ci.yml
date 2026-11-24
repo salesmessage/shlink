@@ -107,7 +107,8 @@ jobs:
         env:
           # rr get reads it to avoid the GitHub API rate limit of anonymous calls
           GITHUB_TOKEN: ${{ github.token }}
-        run: ./vendor/bin/rr get --no-interaction --no-config --location bin/ && chmod +x bin/rr
+        # The same version as RR_VERSION in the Dockerfile
+        run: ./vendor/bin/rr get --no-interaction --no-config --filter=3.0.1 --location bin/ && chmod +x bin/rr
 
       - name: Lint and format
         run: composer cs

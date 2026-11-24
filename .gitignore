@@ -12,3 +12,7 @@ data/infra/matomo
 docs/mercure.html
 .phpunit.result.cache
 docs/swagger/openapi-inlined.json
+# Local env and the composer credentials the image build reads from the build context
+.env.testing
+.env
+auth.json

@@ -7,6 +7,9 @@ ENV SHLINK_RUNTIME=${SHLINK_RUNTIME}
 
 ENV USER_ID='1001'
 ENV PDO_SQLSRV_VERSION='5.13.0'
+ENV RDKAFKA_VERSION='6.0.5'
+# The RoadRunner binary the API suite runs against (CI and data/infra/micro-shortener-start.sh use the same)
+ENV RR_VERSION='3.0.1'
 ENV MS_ODBC_DOWNLOAD='fae28b9a-d880-42fd-9b98-d779f0fdd77f'
 ENV MS_ODBC_SQL_VERSION='18_18.5.1.1'
 ENV LC_ALL='C'
@@ -29,7 +32,7 @@ RUN \
 
 # Install rdkafka, used by salesmessage/streaming to publish visits to Kafka
 RUN apk add --no-cache --virtual .phpize-deps ${PHPIZE_DEPS} librdkafka-dev && \
-    pecl install rdkafka && \
+    pecl install rdkafka-${RDKAFKA_VERSION} && \
     docker-php-ext-enable rdkafka && \
     apk del .phpize-deps
 
@@ -63,7 +66,7 @@ LABEL maintainer="Alejandro Celaya <alejandro@alejandrocelaya.com>"
 COPY --from=builder --chown=${USER_ID} /etc/shlink .
 RUN ln -s /etc/shlink/bin/cli /usr/local/bin/shlink && \
     if [ "$SHLINK_RUNTIME" == 'rr' ]; then \
-      php ./vendor/bin/rr get --no-interaction --no-config --location bin/ && chmod +x bin/rr ; \
+      php ./vendor/bin/rr get --no-interaction --no-config --filter=${RR_VERSION} --location bin/ && chmod +x bin/rr ; \
     fi;
 
 # Expose default port

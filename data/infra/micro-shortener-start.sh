@@ -9,7 +9,8 @@ if [ ! -d ./vendor ]; then
 fi
 
 if [ ! -x ./bin/rr ]; then
-    php vendor/bin/rr get --no-interaction --no-config --location bin/ && chmod +x bin/rr
+    # The same version as RR_VERSION in the Dockerfile
+    php vendor/bin/rr get --no-interaction --no-config --filter=3.0.1 --location bin/ && chmod +x bin/rr
 fi
 
 # A cached config would keep an old BASE_PATH or set of routes after the .env or the code changes
