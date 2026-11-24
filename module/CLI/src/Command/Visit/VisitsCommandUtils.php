@@ -52,6 +52,7 @@ class VisitsCommandUtils
                 $csv->insertOne($headers);
             }
 
+            // @mago-expect analysis:mixed-argument (stricter league/csv types than upstream released with)
             $csv->insertAll($rows);
             $output->write($csv->toString());
 

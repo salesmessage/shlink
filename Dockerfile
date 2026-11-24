@@ -13,6 +13,9 @@ ENV LC_ALL='C'
 
 WORKDIR /etc/shlink
 
+# Pull in OS security fixes even if the pinned php base image is stale (SO-25021)
+RUN apk upgrade --no-cache
+
 # Install required PHP extensions
 RUN \
     # Temp install dev dependencies needed to compile the extensions \
@@ -22,7 +25,13 @@ RUN \
     docker-php-ext-install -j"$(nproc)" pdo_sqlite && \
     # Remove temp dev extensions, and install prod equivalents that are required at runtime \
     apk del .dev-deps && \
-    apk add --no-cache postgresql icu libzip libpng
+    apk add --no-cache postgresql icu libzip libpng librdkafka
+
+# Install rdkafka, used by salesmessage/streaming to publish visits to Kafka
+RUN apk add --no-cache --virtual .phpize-deps ${PHPIZE_DEPS} librdkafka-dev && \
+    pecl install rdkafka && \
+    docker-php-ext-enable rdkafka && \
+    apk del .phpize-deps
 
 # Install sqlsrv driver for x86_64 builds
 RUN if [ $(uname -m) == "x86_64" ]; then \
@@ -42,7 +51,8 @@ COPY --from=composer:2 /usr/bin/composer ./composer.phar
 RUN apk add --no-cache git && \
     php composer.phar install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction && \
     php composer.phar clear-cache && \
-    rm -r docker composer.* && \
+    # Do not ship the CI's composer credentials (auth.json) in the final image (SO-25021)
+    rm -rf docker composer.* auth.json && \
     sed -i "s/%SHLINK_VERSION%/${SHLINK_VERSION}/g" module/Core/src/Config/Options/AppOptions.php
 
 

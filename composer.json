@@ -11,6 +11,12 @@
             "email": "alejandro@alejandrocelaya.com"
         }
     ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/salesmessage/php-lib-streaming"
+        }
+    ],
     "require": {
         "php": "^8.4",
         "ext-curl": "*",
@@ -41,6 +47,7 @@
         "mlocati/ip-lib": "^1.22",
         "pagerfanta/core": "^3.8",
         "ramsey/uuid": "^4.9",
+        "salesmessage/streaming": "^4.0",
         "shlinkio/doctrine-specification": "^2.3",
         "shlinkio/shlink-common": "^9.0.2",
         "shlinkio/shlink-config": "^4.1.0",

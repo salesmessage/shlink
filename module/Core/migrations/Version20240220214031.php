@@ -29,6 +29,7 @@ final class Version20240220214031 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        // @mago-expect analysis:deprecated-method (deprecated in a newer doctrine/dbal than upstream released with)
         $textType = Type::getType(Types::TEXT);
 
         foreach (self::TEXT_COLUMNS as $table => $columns) {
