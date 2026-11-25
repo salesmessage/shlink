@@ -57,6 +57,18 @@ class EnvVarsTest extends TestCase
         yield 'DB_DRIVER (has default)' => [EnvVars::DB_DRIVER, 'sqlite'];
     }
 
+    /**
+     * Title resolution makes an outbound GET of every long URL on create, so it stays off unless enabled, as on the
+     * fork before the upgrade to 5.x.
+     */
+    #[Test]
+    public function autoResolveTitlesIsDisabledByDefault(): void
+    {
+        putenv(EnvVars::AUTO_RESOLVE_TITLES->value);
+
+        self::assertFalse(EnvVars::AUTO_RESOLVE_TITLES->loadFromEnv());
+    }
+
     #[Test]
     public function fallsBackToReadEnvVarsFromFile(): void
     {

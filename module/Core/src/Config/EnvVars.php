@@ -122,8 +122,9 @@ enum EnvVars: string
             self::TIMEZONE => date_default_timezone_get(),
             self::DEFAULT_SHORT_CODES_LENGTH => DEFAULT_SHORT_CODES_LENGTH,
             self::SHORT_URL_MODE => ShortUrlMode::STRICT->value,
-            self::IS_HTTPS_ENABLED, self::AUTO_RESOLVE_TITLES => true,
-            self::MULTI_SEGMENT_SLUGS_ENABLED, self::SHORT_URL_TRAILING_SLASH => false,
+            self::IS_HTTPS_ENABLED => true,
+            // Off as on the fork: title resolution fetches every long URL that core shortens.
+            self::AUTO_RESOLVE_TITLES, self::MULTI_SEGMENT_SLUGS_ENABLED, self::SHORT_URL_TRAILING_SLASH => false,
             self::DEFAULT_DOMAIN, self::BASE_PATH => '',
             self::CACHE_NAMESPACE => 'Shlink',
             self::REDIRECT_EXTRA_PATH_MODE => ExtraPathMode::DEFAULT->value,

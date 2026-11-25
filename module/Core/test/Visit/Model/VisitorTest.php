@@ -123,6 +123,19 @@ class VisitorTest extends TestCase
         yield 'IE8' => ['Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; WOW64; Trident/4.0)'];
         yield 'empty' => [''];
         yield 'blank' => ['   '];
+        // The full user agents of the fork's ClickTrackingTest, so the newer CrawlerDetect keeps flagging them
+        yield 'iMessage link preview, full' => [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+                . '(KHTML, like Gecko) Version/17.0 Safari/605.1.15 LinkPresentation/1.0',
+        ];
+        yield 'Google Messages link preview, full' => [
+            'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, '
+                . 'like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 GoogleMessages/1.0',
+        ];
+        yield 'Sprinklr, compatible' => ['Mozilla/5.0 (compatible; Sprinklr/1.0)'];
+        yield 'Sogou, compatible' => ['Mozilla/5.0 (compatible; Sogou/1.0)'];
+        yield 'Viber, compatible' => ['Mozilla/5.0 (compatible; ViberUrlDownloader)'];
+        yield 'Facebook crawler' => ['cf-facebook'];
     }
 
     #[Test, DataProvider('provideAppsPeopleOpenLinksWith')]
@@ -140,6 +153,20 @@ class VisitorTest extends TestCase
         yield 'Google Lens' => ['Google-Lens'];
         yield 'Android app' => ['Dalvik/2.1.0 (Linux; U; Android 13; SM-A326U Build/TP1A.220624.014)'];
         yield 'Firefox 115' => ['Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0'];
+        // Ordinary browsers of the fork's ClickTrackingTest
+        yield 'Chrome desktop' => [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                . 'Chrome/120.0.0.0 Safari/537.36',
+        ];
+        yield 'Chrome linux' => [
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                . 'Chrome/153.0.0.0 Safari/537.36',
+        ];
+        yield 'Firefox linux' => ['Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'];
+        yield 'Safari iPhone' => [
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, '
+                . 'like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        ];
     }
 
     #[Test]
