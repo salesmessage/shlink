@@ -48,6 +48,10 @@ enum EnvVars: string
     case RABBITMQ_PASSWORD = 'RABBITMQ_PASSWORD';
     case RABBITMQ_VHOST = 'RABBITMQ_VHOST';
     case RABBITMQ_USE_SSL = 'RABBITMQ_USE_SSL';
+    case KAFKA_ENABLED = 'KAFKA_ENABLED';
+    case KAFKA_BROKERS = 'KAFKA_BROKERS';
+    case KAFKA_TOPIC_PREFIX = 'KAFKA_TOPIC_PREFIX';
+    case KAFKA_VISITS_TOPIC = 'KAFKA_VISITS_TOPIC';
     case MATOMO_ENABLED = 'MATOMO_ENABLED';
     case MATOMO_BASE_URL = 'MATOMO_BASE_URL';
     case MATOMO_SITE_ID = 'MATOMO_SITE_ID';
@@ -138,6 +142,9 @@ enum EnvVars: string
             self::RABBITMQ_ENABLED, self::RABBITMQ_USE_SSL => false,
             self::RABBITMQ_PORT => 5672,
             self::RABBITMQ_VHOST => '/',
+            self::KAFKA_ENABLED => false,
+            self::KAFKA_TOPIC_PREFIX => '',
+            self::KAFKA_VISITS_TOPIC => 'shortener',
             self::REDIRECT_STATUS_CODE => DEFAULT_REDIRECT_STATUS_CODE->value,
             self::REDIRECT_CACHE_LIFETIME => DEFAULT_REDIRECT_CACHE_LIFETIME,
             self::ANONYMIZE_REMOTE_ADDR, self::TRACK_ORPHAN_VISITS => true,

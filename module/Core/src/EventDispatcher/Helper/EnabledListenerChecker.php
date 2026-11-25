@@ -19,6 +19,7 @@ readonly class EnabledListenerChecker implements EnabledListenerCheckerInterface
         private MercureOptions $mercureOptions,
         private GeoLite2Options $geoLiteOptions,
         private MatomoOptions $matomoOptions,
+        private bool $kafkaEnabled,
     ) {}
 
     public function shouldRegisterListener(string $event, string $listener, bool $isAsync): bool
@@ -39,6 +40,7 @@ readonly class EnabledListenerChecker implements EnabledListenerCheckerInterface
                 => $this->mercureOptions->enabled,
             EventDispatcher\Matomo\SendVisitToMatomo::class => $this->matomoOptions->enabled,
             EventDispatcher\UpdateGeoLiteDb::class => $this->geoLiteOptions->hasLicenseKey(),
+            EventDispatcher\Kafka\NotifyVisitToKafka::class => $this->kafkaEnabled,
             default => false, // Any unknown async listener should not be enabled by default
         };
     }

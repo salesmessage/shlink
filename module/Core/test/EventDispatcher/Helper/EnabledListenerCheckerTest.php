@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Common\Mercure\MercureOptions;
 use Shlinkio\Shlink\Core\Config\Options\RabbitMqOptions;
 use Shlinkio\Shlink\Core\EventDispatcher\Helper\EnabledListenerChecker;
+use Shlinkio\Shlink\Core\EventDispatcher\Kafka\NotifyVisitToKafka;
 use Shlinkio\Shlink\Core\EventDispatcher\Matomo\SendVisitToMatomo;
 use Shlinkio\Shlink\Core\EventDispatcher\Mercure\NotifyNewShortUrlToMercure;
 use Shlinkio\Shlink\Core\EventDispatcher\Mercure\NotifyVisitToMercure;
@@ -40,6 +41,7 @@ class EnabledListenerCheckerTest extends TestCase
             [NotifyNewShortUrlToMercure::class],
             [SendVisitToMatomo::class],
             [UpdateGeoLiteDb::class],
+            [NotifyVisitToKafka::class],
         ];
     }
 
@@ -124,6 +126,20 @@ class EnabledListenerCheckerTest extends TestCase
                 'unknown' => false,
             ],
         ];
+        yield 'Kafka' => [
+            self::checker(kafkaEnabled: true),
+            [
+                NotifyVisitToRabbitMq::class => false,
+                NotifyNewShortUrlToRabbitMq::class => false,
+                NotifyVisitToRedis::class => false,
+                NotifyNewShortUrlToRedis::class => false,
+                NotifyVisitToMercure::class => false,
+                NotifyNewShortUrlToMercure::class => false,
+                UpdateGeoLiteDb::class => false,
+                NotifyVisitToKafka::class => true,
+                'unknown' => false,
+            ],
+        ];
         yield 'All disabled' => [
             self::checker(),
             [
@@ -134,6 +150,7 @@ class EnabledListenerCheckerTest extends TestCase
                 NotifyVisitToMercure::class => false,
                 NotifyNewShortUrlToMercure::class => false,
                 UpdateGeoLiteDb::class => false,
+                NotifyVisitToKafka::class => false,
                 'unknown' => false,
             ],
         ];
@@ -144,6 +161,7 @@ class EnabledListenerCheckerTest extends TestCase
                 mercureEnabled: true,
                 geoLiteEnabled: true,
                 matomoEnabled: true,
+                kafkaEnabled: true,
             ),
             [
                 NotifyVisitToRabbitMq::class => true,
@@ -154,6 +172,7 @@ class EnabledListenerCheckerTest extends TestCase
                 NotifyNewShortUrlToMercure::class => true,
                 SendVisitToMatomo::class => true,
                 UpdateGeoLiteDb::class => true,
+                NotifyVisitToKafka::class => true,
                 'unknown' => false,
             ],
         ];
@@ -165,6 +184,7 @@ class EnabledListenerCheckerTest extends TestCase
         bool $mercureEnabled = false,
         bool $geoLiteEnabled = false,
         bool $matomoEnabled = false,
+        bool $kafkaEnabled = false,
     ): EnabledListenerChecker {
         return new EnabledListenerChecker(
             new RabbitMqOptions(enabled: $rabbitMqEnabled),
@@ -172,6 +192,7 @@ class EnabledListenerCheckerTest extends TestCase
             new MercureOptions(enabled: $mercureEnabled),
             new GeoLite2Options(licenseKey: $geoLiteEnabled ? 'the-key' : null),
             new MatomoOptions(enabled: $matomoEnabled),
+            $kafkaEnabled,
         );
     }
 }

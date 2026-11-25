@@ -8,6 +8,10 @@ use CuyZ\Valinor\MapperBuilder;
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
 use Laminas\ServiceManager\Factory\InvokableFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Salesmessage\Streaming\Driver\Kafka\Message\KafkaMessageFactory;
+use Salesmessage\Streaming\Message\MessageFactoryInterface;
+use Salesmessage\Streaming\Producer\ProducerInterface;
+use Salesmessage\Streaming\Route\RouteInterface;
 use Shlinkio\Shlink\Common\Doctrine\EntityRepositoryFactory;
 use Shlinkio\Shlink\Core\Config\Options\NotFoundRedirectOptions;
 use Shlinkio\Shlink\Core\Geolocation\GeolocationDbUpdater;
@@ -112,6 +116,11 @@ return [
 
             EventDispatcher\PublishingUpdatesGenerator::class => ConfigAbstractFactory::class,
 
+            EventDispatcher\Kafka\DeliveryFailures::class => InvokableFactory::class,
+            ProducerInterface::class => EventDispatcher\Kafka\KafkaProducerFactory::class,
+            RouteInterface::class => EventDispatcher\Kafka\VisitsTopicFactory::class,
+            KafkaMessageFactory::class => InvokableFactory::class,
+
             Geolocation\GeolocationDbUpdater::class => ConfigAbstractFactory::class,
             Geolocation\Middleware\IpGeolocationMiddleware::class => ConfigAbstractFactory::class,
 
@@ -126,6 +135,7 @@ return [
 
         'aliases' => [
             ImportedLinksProcessorInterface::class => Importer\ImportedLinksProcessor::class,
+            MessageFactoryInterface::class => KafkaMessageFactory::class,
         ],
     ],
 

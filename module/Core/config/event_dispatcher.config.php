@@ -6,6 +6,9 @@ namespace Shlinkio\Shlink\Core;
 
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Salesmessage\Streaming\Message\MessageFactoryInterface;
+use Salesmessage\Streaming\Producer\ProducerInterface;
+use Salesmessage\Streaming\Route\RouteInterface;
 use Shlinkio\Shlink\Common\Cache\RedisPublishingHelper;
 use Shlinkio\Shlink\Common\Mercure\MercureHubPublishingHelper;
 use Shlinkio\Shlink\Common\Mercure\MercureOptions;
@@ -29,6 +32,7 @@ return (static function (): array {
         EventDispatcher\Event\UrlVisited::class => [
             EventDispatcher\Mercure\NotifyVisitToMercure::class,
             EventDispatcher\RabbitMq\NotifyVisitToRabbitMq::class,
+            EventDispatcher\Kafka\NotifyVisitToKafka::class,
             EventDispatcher\RedisPubSub\NotifyVisitToRedis::class,
             EventDispatcher\UpdateGeoLiteDb::class,
         ],
@@ -60,6 +64,7 @@ return (static function (): array {
                 EventDispatcher\Mercure\NotifyNewShortUrlToMercure::class => ConfigAbstractFactory::class,
                 EventDispatcher\RabbitMq\NotifyVisitToRabbitMq::class => ConfigAbstractFactory::class,
                 EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq::class => ConfigAbstractFactory::class,
+                EventDispatcher\Kafka\NotifyVisitToKafka::class => ConfigAbstractFactory::class,
                 EventDispatcher\RedisPubSub\NotifyVisitToRedis::class => ConfigAbstractFactory::class,
                 EventDispatcher\RedisPubSub\NotifyNewShortUrlToRedis::class => ConfigAbstractFactory::class,
                 EventDispatcher\UpdateGeoLiteDb::class => ConfigAbstractFactory::class,
@@ -85,6 +90,9 @@ return (static function (): array {
                     EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
                 ],
                 EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq::class => [
+                    EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
+                ],
+                EventDispatcher\Kafka\NotifyVisitToKafka::class => [
                     EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
                 ],
                 EventDispatcher\RedisPubSub\NotifyVisitToRedis::class => [
@@ -134,6 +142,16 @@ return (static function (): array {
                 Config\Options\RealTimeUpdatesOptions::class,
                 Config\Options\RabbitMqOptions::class,
             ],
+            EventDispatcher\Kafka\NotifyVisitToKafka::class => [
+                ProducerInterface::class,
+                MessageFactoryInterface::class,
+                RouteInterface::class,
+                EventDispatcher\PublishingUpdatesGenerator::class,
+                'em',
+                'Logger_Shlink',
+                EventDispatcher\Kafka\DeliveryFailures::class,
+                'config.kafka.enabled',
+            ],
             EventDispatcher\RedisPubSub\NotifyVisitToRedis::class => [
                 RedisPublishingHelper::class,
                 EventDispatcher\PublishingUpdatesGenerator::class,
@@ -170,6 +188,7 @@ return (static function (): array {
                 MercureOptions::class,
                 GeoLite2Options::class,
                 MatomoOptions::class,
+                'config.kafka.enabled',
             ],
         ],
     ];
