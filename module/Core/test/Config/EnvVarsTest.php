@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Core\Config\EnvVars;
 
+use function getenv;
 use function putenv;
 
 class EnvVarsTest extends TestCase
@@ -64,9 +65,16 @@ class EnvVarsTest extends TestCase
     #[Test]
     public function autoResolveTitlesIsDisabledByDefault(): void
     {
+        $previous = getenv(EnvVars::AUTO_RESOLVE_TITLES->value);
         putenv(EnvVars::AUTO_RESOLVE_TITLES->value);
 
-        self::assertFalse(EnvVars::AUTO_RESOLVE_TITLES->loadFromEnv());
+        try {
+            self::assertFalse(EnvVars::AUTO_RESOLVE_TITLES->loadFromEnv());
+        } finally {
+            if ($previous !== false) {
+                putenv(EnvVars::AUTO_RESOLVE_TITLES->value . '=' . $previous);
+            }
+        }
     }
 
     #[Test]

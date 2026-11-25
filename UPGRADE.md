@@ -36,6 +36,7 @@
 * QR codes URLs now work by default, even for short URLs that cannot be visited due to max visits or date range limitations.
   If you want to keep previous behavior, pass `QR_CODE_FOR_DISABLED_SHORT_URLS=false` or the equivalent configuration option.
 * Long URL title resolution is now enabled by default. You can still disable it by passing `AUTO_RESOLVE_TITLES=false` or the equivalent configuration option.
+  **SalesMessage fork:** the default stays `false`, as before the upgrade: resolving titles fetches every long URL that core shortens. Enable it with `AUTO_RESOLVE_TITLES=true`.
 * Shlink no longer allows to opt-in for long URL verification. Long URLs are unconditionally considered correct during short URL creation/edition.
 * Device long URLs have been migrated to the new Dynamic rule-based redirects system and will continue to work as expected, but the API surface has changed.
   If you use shlink-web-client and rely on this feature when creating/updating short URLs, **DO NOT UPDATE YET**. Support for dynamic rule-based redirects will be added to shlink-web-client soon, in v4.1.0
