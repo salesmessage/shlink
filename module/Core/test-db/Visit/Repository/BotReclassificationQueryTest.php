@@ -57,9 +57,9 @@ class BotReclassificationQueryTest extends DatabaseTestCase
         ), '2026-09-24 12:00:00');
         $em->flush();
 
-        $since = Chronos::create(2026, 9, 22);
+        $since = Chronos::create(2026, 9, 22, 0, 0, 0);
         self::assertEquals((int) $first->getId(), $this->query->findFirstVisitIdSince($since));
-        self::assertNull($this->query->findFirstVisitIdSince(Chronos::create(2026, 10, 1)));
+        self::assertNull($this->query->findFirstVisitIdSince(Chronos::create(2026, 10, 1, 0, 0, 0)));
 
         $found = $this->query->findUnflaggedShortUrlVisits($since, 0, 10);
         self::assertEquals(
