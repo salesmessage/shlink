@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShlinkioDbTest\Shlink\Core\ShortUrl\Repository;
 
 use Cake\Chronos\Chronos;
+use Doctrine\DBAL\Types\Types;
 use PHPUnit\Framework\Attributes\Test;
 use Shlinkio\Shlink\Core\Domain\Entity\Domain;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
@@ -268,6 +269,32 @@ class ShortUrlRepositoryTest extends DatabaseTestCase
         self::assertSame($shortUrl1, $result);
         self::assertNotSame($shortUrl2, $result);
         self::assertNotSame($shortUrl3, $result);
+    }
+
+    /**
+     * Short URLs created before the switch to 5.x have an empty long_url_hash until the fill command runs (D-009)
+     */
+    #[Test]
+    public function findOneMatchingFindsShortUrlWithEmptyLongUrlHash(): void
+    {
+        $meta = new ShortUrlCreation('https://created-before-the-switch.test');
+        $shortUrl = ShortUrl::create($meta, $this->relationResolver);
+        $this->getEntityManager()->persist($shortUrl);
+        $this->getEntityManager()->flush();
+        $this
+            ->getEntityManager()
+            ->getConnection()
+            ->executeStatement(
+                'UPDATE short_urls SET long_url_hash = :empty WHERE id = :id',
+                ['empty' => '', 'id' => $shortUrl->getId()],
+                ['empty' => Types::BINARY],
+            );
+        $this->getEntityManager()->clear();
+
+        $result = $this->repo->findOneMatching($meta);
+
+        self::assertNotNull($result);
+        self::assertSame($shortUrl->getId(), $result->getId());
     }
 
     #[Test]

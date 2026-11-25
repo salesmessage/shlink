@@ -6,7 +6,6 @@ namespace Shlinkio\Shlink\Core\ShortUrl\Repository;
 
 use Doctrine\DBAL\LockMode;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
-use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
 use Happyr\DoctrineSpecification\Repository\EntitySpecificationRepository;
@@ -19,7 +18,6 @@ use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlMode;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkUrl;
 
 use function count;
-use function Shlinkio\Shlink\Core\stringToBinHash;
 use function strtolower;
 
 /** @extends EntitySpecificationRepository<ShortUrl> */
@@ -125,8 +123,10 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
         $qb
             ->select('s')
             ->from(ShortUrl::class, 's')
-            ->where($qb->expr()->eq('s.longUrlHash', ':longUrlHash'))
-            ->setParameter('longUrlHash', stringToBinHash($creation->longUrl), Types::BINARY)
+            // SWR-25201 (D-009): by the long URL, not by long_url_hash as upstream. Short URLs created before the
+            // upgrade keep an empty hash until short-url:fill-long-url-hash has run, and findIfExists must find them.
+            ->where($qb->expr()->eq('s.longUrl', ':longUrl'))
+            ->setParameter('longUrl', $creation->longUrl)
             ->setMaxResults(1)
             ->orderBy('s.id');
 

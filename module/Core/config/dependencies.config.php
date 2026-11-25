@@ -57,6 +57,7 @@ return [
             ShortUrl\DeleteShortUrlService::class => ConfigAbstractFactory::class,
             ShortUrl\ShortUrlResolver::class => ConfigAbstractFactory::class,
             ShortUrl\ShortUrlVisitsDeleter::class => ConfigAbstractFactory::class,
+            ShortUrl\LongUrlHashFiller::class => ConfigAbstractFactory::class,
             ShortUrl\Helper\ShortCodeUniquenessHelper::class => ConfigAbstractFactory::class,
             ShortUrl\Resolver\PersistenceShortUrlRelationResolver::class => ConfigAbstractFactory::class,
             ShortUrl\Helper\ShortUrlStringifier::class => ConfigAbstractFactory::class,
@@ -150,6 +151,7 @@ return [
             BotIp\BotIpMatcherInterface::class => BotIp\BotIpMatcher::class,
             BotIp\BotIpRangesUpdaterInterface::class => BotIp\BotIpRangesUpdater::class,
             BotIp\VisitBotReclassifierInterface::class => BotIp\VisitBotReclassifier::class,
+            ShortUrl\LongUrlHashFillerInterface::class => ShortUrl\LongUrlHashFiller::class,
             BotIp\Repository\BotIpRangeRepositoryInterface::class => BotIp\Repository\BotIpRangeRepository::class,
             Visit\Repository\BotReclassificationQueryInterface::class =>
                 Visit\Repository\BotReclassificationQuery::class,
@@ -174,6 +176,7 @@ return [
             Domain\DomainService::class,
         ],
 
+        ShortUrl\LongUrlHashFiller::class => ['em'],
         ShortUrl\UrlShortener::class => [
             ShortUrl\Helper\ShortUrlTitleResolutionHelper::class,
             'em',
