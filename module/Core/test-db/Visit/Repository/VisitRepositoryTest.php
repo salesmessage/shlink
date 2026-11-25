@@ -434,11 +434,16 @@ class VisitRepositoryTest extends DatabaseTestCase
                 Chronos::parse(sprintf('2020-01-0%s', $i + 1)),
             ));
             $this->getEntityManager()->persist($this->setDateOnVisit(
-                static fn () => Visit::forInvalidShortUrl(Visitor::fromParams(visitedUrl: 'https://s.test/bar')),
+                // A browser user agent: an empty one is a potential bot (SWR-26047)
+                static fn () => Visit::forInvalidShortUrl(Visitor::fromParams(
+                    userAgent: 'Mozilla/5.0',
+                    visitedUrl: 'https://s.test/bar',
+                )),
                 Chronos::parse(sprintf('2020-01-0%s', $i + 1)),
             ));
             $this->getEntityManager()->persist($this->setDateOnVisit(
                 static fn () => Visit::forRegularNotFound(Visitor::fromParams(
+                    userAgent: 'Mozilla/5.0',
                     visitedUrl: 'https://example.com/foo?1=2',
                 )),
                 Chronos::parse(sprintf('2020-01-0%s', $i + 1)),

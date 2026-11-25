@@ -7,6 +7,7 @@ namespace Shlinkio\Shlink\Core\ShortUrl\Model;
 use Psr\Http\Message\ServerRequestInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 
+use function is_string;
 use function sprintf;
 
 final readonly class ShortUrlIdentifier
@@ -24,7 +25,11 @@ final readonly class ShortUrlIdentifier
     public static function fromRedirectRequest(ServerRequestInterface $request): self
     {
         $shortCode = $request->getAttribute('shortCode', '');
-        $domain = $request->getUri()->getAuthority();
+        // micro-shortener-proxy serves custom domains through the default one, passing the original as smg_domain
+        $query = $request->getQueryParams();
+        $domain = isset($query['smg_domain']) && is_string($query['smg_domain'])
+            ? $query['smg_domain']
+            : $request->getUri()->getAuthority();
 
         return new self($shortCode, $domain);
     }

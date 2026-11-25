@@ -6,6 +6,7 @@ namespace Shlinkio\Shlink\Core\Visit;
 
 use Doctrine\ORM;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Shlinkio\Shlink\Core\BotIp\BotIpMatcherInterface;
 use Shlinkio\Shlink\Core\Config\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\EventDispatcher\Event\UrlVisited;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
@@ -18,6 +19,7 @@ readonly class VisitsTracker implements VisitsTrackerInterface
         private ORM\EntityManagerInterface $em,
         private EventDispatcherInterface $eventDispatcher,
         private TrackingOptions $options,
+        private BotIpMatcherInterface $botIpMatcher,
     ) {}
 
     public function track(ShortUrl $shortUrl, Visitor $visitor): Visit|null
@@ -68,6 +70,11 @@ readonly class VisitsTracker implements VisitsTrackerInterface
     {
         if ($this->options->disableTracking) {
             return null;
+        }
+
+        // Checked on the full address, before it is anonymized for storage (SWR-26047)
+        if (!$visitor->potentialBot && $this->botIpMatcher->isBotAddress($visitor->remoteAddress)) {
+            $visitor = $visitor->markAsPotentialBot();
         }
 
         $visit = $createVisit($visitor->normalizeForTrackingOptions($this->options));

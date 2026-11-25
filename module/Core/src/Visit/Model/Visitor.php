@@ -71,14 +71,42 @@ final readonly class Visitor
         );
     }
 
+    /**
+     * A visitor without any data, not built from a request. Not a potential bot: the empty user agent rule of
+     * isCrawler() is about requests
+     */
     public static function empty(): self
     {
-        return self::fromParams();
+        return new self(
+            userAgent: '',
+            referer: '',
+            remoteAddress: null,
+            visitedUrl: '',
+            potentialBot: false,
+            geolocation: null,
+            redirectUrl: null,
+        );
     }
 
     public static function botInstance(): self
     {
         return self::fromParams(userAgent: 'cf-facebook');
+    }
+
+    /**
+     * A visit from a known bot address is a bot whatever its user agent claims (SWR-26047)
+     */
+    public function markAsPotentialBot(): self
+    {
+        return new self(
+            userAgent: $this->userAgent,
+            referer: $this->referer,
+            remoteAddress: $this->remoteAddress,
+            visitedUrl: $this->visitedUrl,
+            potentialBot: true,
+            geolocation: $this->geolocation,
+            redirectUrl: $this->redirectUrl,
+        );
     }
 
     public function normalizeForTrackingOptions(TrackingOptions $options): self

@@ -22,6 +22,8 @@ use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlTitleResolutionHelper;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
 
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
+
 class ShortUrlTitleResolutionHelperTest extends TestCase
 {
     private const string LONG_URL = 'https://foobar.com/12345/hello?foo=bar';
@@ -205,7 +207,11 @@ class ShortUrlTitleResolutionHelperTest extends TestCase
                     RequestOptions::CONNECT_TIMEOUT => 3,
                     RequestOptions::ALLOW_REDIRECTS => ['max' => ShortUrlTitleResolutionHelper::MAX_REDIRECTS],
                     RequestOptions::IDN_CONVERSION => true,
-                    RequestOptions::HEADERS => ['User-Agent' => ShortUrlTitleResolutionHelper::CHROME_USER_AGENT],
+                    RequestOptions::HEADERS => [
+                        'User-Agent' => ShortUrlTitleResolutionHelper::CHROME_USER_AGENT,
+                        // SWR-19123: a long URL that is one of our short URLs must not count this fetch as a click
+                        URL_VALIDATION_HEADER => '1',
+                    ],
                     RequestOptions::STREAM => true,
                 ],
             );

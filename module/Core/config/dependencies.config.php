@@ -98,6 +98,19 @@ return [
                 EntityRepositoryFactory::class,
                 Visit\Entity\Visit::class,
             ],
+            Visit\Repository\BotReclassificationQuery::class => [
+                EntityRepositoryFactory::class,
+                Visit\Entity\Visit::class,
+            ],
+
+            Config\Options\BotIpOptions::class => InvokableFactory::class,
+            BotIp\BotIpMatcher::class => ConfigAbstractFactory::class,
+            BotIp\BotIpRangesUpdater::class => ConfigAbstractFactory::class,
+            BotIp\VisitBotReclassifier::class => ConfigAbstractFactory::class,
+            BotIp\Repository\BotIpRangeRepository::class => [
+                EntityRepositoryFactory::class,
+                BotIp\Entity\BotIpRange::class,
+            ],
             Visit\Repository\VisitDeleterRepository::class => [
                 EntityRepositoryFactory::class,
                 Visit\Entity\Visit::class,
@@ -134,6 +147,12 @@ return [
         ],
 
         'aliases' => [
+            BotIp\BotIpMatcherInterface::class => BotIp\BotIpMatcher::class,
+            BotIp\BotIpRangesUpdaterInterface::class => BotIp\BotIpRangesUpdater::class,
+            BotIp\VisitBotReclassifierInterface::class => BotIp\VisitBotReclassifier::class,
+            BotIp\Repository\BotIpRangeRepositoryInterface::class => BotIp\Repository\BotIpRangeRepository::class,
+            Visit\Repository\BotReclassificationQueryInterface::class =>
+                Visit\Repository\BotReclassificationQuery::class,
             ImportedLinksProcessorInterface::class => Importer\ImportedLinksProcessor::class,
             MessageFactoryInterface::class => KafkaMessageFactory::class,
         ],
@@ -167,6 +186,24 @@ return [
             'em',
             EventDispatcherInterface::class,
             Config\Options\TrackingOptions::class,
+            BotIp\BotIpMatcherInterface::class,
+        ],
+        BotIp\BotIpMatcher::class => [
+            BotIp\Repository\BotIpRangeRepositoryInterface::class,
+            Config\Options\BotIpOptions::class,
+            'Logger_Shlink',
+        ],
+        BotIp\BotIpRangesUpdater::class => [
+            'httpClient',
+            'em',
+            BotIp\Repository\BotIpRangeRepositoryInterface::class,
+            Lock\LockFactory::class,
+            Config\Options\BotIpOptions::class,
+            'Logger_Shlink',
+        ],
+        BotIp\VisitBotReclassifier::class => [
+            Visit\Repository\BotReclassificationQueryInterface::class,
+            BotIp\BotIpMatcherInterface::class,
         ],
         Visit\RequestTracker::class => [Visit\VisitsTracker::class, Config\Options\TrackingOptions::class],
         Visit\VisitsDeleter::class => [Visit\Repository\VisitDeleterRepository::class],

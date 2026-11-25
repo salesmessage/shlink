@@ -33,11 +33,13 @@ use function Shlinkio\Shlink\Common\buildDateRange;
 use function Shlinkio\Shlink\Common\normalizeOptionalDate;
 use function Shlinkio\Shlink\Core\ArrayUtils\map;
 use function sprintf;
+use function str_contains;
 use function str_repeat;
 use function str_replace;
 use function strtolower;
 use function trim;
 
+use const Shlinkio\Shlink\BOT_USER_AGENT_FRAGMENTS;
 use const Shlinkio\Shlink\IP_ADDRESS_REQUEST_ATTRIBUTE;
 
 function generateRandomShortCode(int $length, ShortUrlMode $mode = ShortUrlMode::STRICT): string
@@ -157,6 +159,18 @@ function arrayToString(array $array, int $indentSize = 4): string
 
 function isCrawler(string $userAgent): bool
 {
+    // Browsers and apps always send a user agent: an empty one is a script (SWR-26047)
+    if (trim($userAgent) === '') {
+        return true;
+    }
+
+    $lowercasedUserAgent = strtolower($userAgent);
+    foreach (BOT_USER_AGENT_FRAGMENTS as $fragment) {
+        if (str_contains($lowercasedUserAgent, $fragment)) {
+            return true;
+        }
+    }
+
     static $detector = new CrawlerDetect();
     return $detector->isCrawler($userAgent);
 }

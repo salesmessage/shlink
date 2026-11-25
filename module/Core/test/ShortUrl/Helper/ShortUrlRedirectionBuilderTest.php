@@ -149,4 +149,24 @@ class ShortUrlRedirectionBuilderTest extends TestCase
 
         self::assertEquals($longUrl, $result);
     }
+
+    /**
+     * Sensitive hosts (SENSITIVE_HOSTS) get no query of the visit, only the one of their long URL
+     *
+     * @param non-empty-string $longUrl
+     */
+    #[Test]
+    #[TestWith(['https://glo3d.net/v/123?vid=1', 'https://glo3d.net/v/123?vid=1'])]
+    #[TestWith(['https://www.glo3d.net/v/123?vid=1', 'https://www.glo3d.net/v/123?vid=1&utm_sm_mid=9'])]
+    #[TestWith(['https://example.com/glo3d.net?vid=1', 'https://example.com/glo3d.net?vid=1&utm_sm_mid=9'])]
+    public function queryIsNotForwardedToSensitiveHosts(string $longUrl, string $expectedUrl): void
+    {
+        $shortUrl = ShortUrl::withLongUrl($longUrl);
+        $request = ServerRequestFactory::fromGlobals()->withUri(new Uri()->withQuery('utm_sm_mid=9'));
+        $this->redirectionResolver->expects($this->once())->method('resolveLongUrl')->willReturn($longUrl);
+
+        $result = $this->redirectionBuilder->buildShortUrlRedirect($shortUrl, $request);
+
+        self::assertEquals($expectedUrl, $result);
+    }
 }

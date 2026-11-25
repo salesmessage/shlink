@@ -20,6 +20,7 @@ use Shlinkio\Shlink\Core\Visit\RequestTracker;
 use Shlinkio\Shlink\Core\Visit\VisitsTrackerInterface;
 
 use const Shlinkio\Shlink\IP_ADDRESS_REQUEST_ATTRIBUTE;
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
 
 class RequestTrackerTest extends TestCase
 {
@@ -69,6 +70,10 @@ class RequestTrackerTest extends TestCase
         yield 'disable track param' => [ServerRequestFactory::fromGlobals()->withQueryParams(['foobar' => 'foo'])];
         yield 'disable track param as null' => [
             ServerRequestFactory::fromGlobals()->withQueryParams(['foobar' => null]),
+        ];
+        // SWR-19123: our own fetch of a long URL (title resolution) is not a click
+        yield 'url validation header' => [
+            ServerRequestFactory::fromGlobals()->withHeader(URL_VALIDATION_HEADER, '1'),
         ];
         yield 'exact remote address' => [ServerRequestFactory::fromGlobals()->withAttribute(
             IP_ADDRESS_REQUEST_ATTRIBUTE,

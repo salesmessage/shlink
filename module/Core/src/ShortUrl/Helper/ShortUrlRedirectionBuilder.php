@@ -12,7 +12,10 @@ use Shlinkio\Shlink\Core\Config\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\RedirectRule\ShortUrlRedirectionResolverInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 
+use function in_array;
 use function sprintf;
+
+use const Shlinkio\Shlink\SENSITIVE_HOSTS;
 
 readonly class ShortUrlRedirectionBuilder implements ShortUrlRedirectionBuilderInterface
 {
@@ -27,7 +30,8 @@ readonly class ShortUrlRedirectionBuilder implements ShortUrlRedirectionBuilderI
         string|null $extraPath = null,
     ): string {
         $uri = new Uri($this->redirectionResolver->resolveLongUrl($shortUrl, $request));
-        $shouldForwardQuery = $shortUrl->forwardQuery;
+        // Long URLs on sensitive hosts get no query of the visit
+        $shouldForwardQuery = $shortUrl->forwardQuery && !in_array($uri->getHost(), SENSITIVE_HOSTS, strict: true);
         $baseQueryString = $uri->getQuery();
         $basePath = $uri->getPath();
 

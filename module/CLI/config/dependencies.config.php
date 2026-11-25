@@ -8,6 +8,7 @@ use CuyZ\Valinor\Mapper\TreeMapper;
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
 use Laminas\ServiceManager\Factory\InvokableFactory;
 use Shlinkio\Shlink\Common\Doctrine\NoDbNameConnectionFactory;
+use Shlinkio\Shlink\Core\BotIp;
 use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\Domain\DomainService;
 use Shlinkio\Shlink\Core\Geolocation\GeolocationDbUpdater;
@@ -50,6 +51,8 @@ return [
             Command\Visit\GetOrphanVisitsCommand::class => ConfigAbstractFactory::class,
             Command\Visit\DeleteOrphanVisitsCommand::class => ConfigAbstractFactory::class,
             Command\Visit\GetNonOrphanVisitsCommand::class => ConfigAbstractFactory::class,
+            Command\Visit\DownloadBotIpsCommand::class => ConfigAbstractFactory::class,
+            Command\Visit\ReclassifyBotVisitsCommand::class => ConfigAbstractFactory::class,
 
             Command\Api\GenerateKeyCommand::class => ConfigAbstractFactory::class,
             Command\Api\DisableKeyCommand::class => ConfigAbstractFactory::class,
@@ -114,6 +117,11 @@ return [
         Command\Visit\GetOrphanVisitsCommand::class => [Visit\VisitsStatsHelper::class],
         Command\Visit\DeleteOrphanVisitsCommand::class => [Visit\VisitsDeleter::class],
         Command\Visit\GetNonOrphanVisitsCommand::class => [Visit\VisitsStatsHelper::class],
+        Command\Visit\DownloadBotIpsCommand::class => [BotIp\BotIpRangesUpdaterInterface::class],
+        Command\Visit\ReclassifyBotVisitsCommand::class => [
+            BotIp\VisitBotReclassifierInterface::class,
+            LockFactory::class,
+        ],
 
         Command\Api\GenerateKeyCommand::class => [ApiKeyService::class, ApiKey\RoleResolver::class],
         Command\Api\DisableKeyCommand::class => [ApiKeyService::class],

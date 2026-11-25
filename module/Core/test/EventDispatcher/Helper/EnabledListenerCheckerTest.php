@@ -18,6 +18,7 @@ use Shlinkio\Shlink\Core\EventDispatcher\RabbitMq\NotifyNewShortUrlToRabbitMq;
 use Shlinkio\Shlink\Core\EventDispatcher\RabbitMq\NotifyVisitToRabbitMq;
 use Shlinkio\Shlink\Core\EventDispatcher\RedisPubSub\NotifyNewShortUrlToRedis;
 use Shlinkio\Shlink\Core\EventDispatcher\RedisPubSub\NotifyVisitToRedis;
+use Shlinkio\Shlink\Core\EventDispatcher\UpdateBotIpRanges;
 use Shlinkio\Shlink\Core\EventDispatcher\UpdateGeoLiteDb;
 use Shlinkio\Shlink\Core\Matomo\MatomoOptions;
 use Shlinkio\Shlink\IpGeolocation\GeoLite2\GeoLite2Options;
@@ -42,6 +43,7 @@ class EnabledListenerCheckerTest extends TestCase
             [SendVisitToMatomo::class],
             [UpdateGeoLiteDb::class],
             [NotifyVisitToKafka::class],
+            [UpdateBotIpRanges::class],
         ];
     }
 
@@ -151,6 +153,8 @@ class EnabledListenerCheckerTest extends TestCase
                 NotifyNewShortUrlToMercure::class => false,
                 UpdateGeoLiteDb::class => false,
                 NotifyVisitToKafka::class => false,
+                // Needs no integration: bot detection by IP refreshes its ranges whatever is enabled
+                UpdateBotIpRanges::class => true,
                 'unknown' => false,
             ],
         ];
@@ -173,6 +177,7 @@ class EnabledListenerCheckerTest extends TestCase
                 SendVisitToMatomo::class => true,
                 UpdateGeoLiteDb::class => true,
                 NotifyVisitToKafka::class => true,
+                UpdateBotIpRanges::class => true,
                 'unknown' => false,
             ],
         ];

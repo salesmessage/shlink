@@ -22,6 +22,8 @@ return [
             Command\Visit\GetOrphanVisitsCommand::NAME => Command\Visit\GetOrphanVisitsCommand::class,
             Command\Visit\DeleteOrphanVisitsCommand::NAME => Command\Visit\DeleteOrphanVisitsCommand::class,
             Command\Visit\GetNonOrphanVisitsCommand::NAME => Command\Visit\GetNonOrphanVisitsCommand::class,
+            Command\Visit\DownloadBotIpsCommand::NAME => Command\Visit\DownloadBotIpsCommand::class,
+            Command\Visit\ReclassifyBotVisitsCommand::NAME => Command\Visit\ReclassifyBotVisitsCommand::class,
 
             Command\Api\GenerateKeyCommand::NAME => Command\Api\GenerateKeyCommand::class,
             Command\Api\DisableKeyCommand::NAME => Command\Api\DisableKeyCommand::class,

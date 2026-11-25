@@ -148,4 +148,27 @@ class RedirectTest extends ApiTestCase
         self::assertEquals(302, $response->getStatusCode());
         self::assertEquals('https://example.com?foo%20bar=123', $response->getHeaderLine('Location'));
     }
+
+    /**
+     * micro-shortener-proxy serves custom domains through the default one and passes the original domain as
+     * smg_domain: the short URL is resolved and its visit tracked on that domain
+     */
+    #[Test]
+    public function shortUrlIsResolvedAndTrackedOnTheDomainOfSmgDomain(): void
+    {
+        $response = $this->callShortUrl('custom-with-domain', [
+            RequestOptions::QUERY => ['smg_domain' => 'some-domain.com'],
+            RequestOptions::HEADERS => ['User-Agent' => WINDOWS_USER_AGENT],
+        ]);
+
+        self::assertEquals(302, $response->getStatusCode());
+        self::assertEquals('https://google.com?smg_domain=some-domain.com', $response->getHeaderLine('Location'));
+
+        $visitsResp = $this->callApiWithKey('GET', '/short-urls/custom-with-domain/visits', [
+            RequestOptions::QUERY => ['domain' => 'some-domain.com'],
+        ]);
+        $payload = $this->getJsonResponsePayload($visitsResp);
+        self::assertEquals(1, $payload['visits']['pagination']['totalItems'] ?? null);
+        self::assertEquals(WINDOWS_USER_AGENT, $payload['visits']['data'][0]['userAgent'] ?? null);
+    }
 }

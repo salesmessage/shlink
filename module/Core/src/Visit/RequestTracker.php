@@ -17,6 +17,8 @@ use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 
 use function Shlinkio\Shlink\Core\ipAddressFromRequest;
 
+use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
+
 readonly class RequestTracker implements RequestTrackerInterface, RequestMethodInterface
 {
     public function __construct(
@@ -55,6 +57,11 @@ readonly class RequestTracker implements RequestTrackerInterface, RequestMethodI
     {
         $forwardedMethod = $request->getAttribute(ImplicitHeadMiddleware::FORWARDED_HTTP_METHOD_ATTRIBUTE);
         if ($forwardedMethod === self::METHOD_HEAD) {
+            return false;
+        }
+
+        // Shlink's own fetch of a long URL, see ShortUrlTitleResolutionHelper (SWR-19123)
+        if ($request->hasHeader(URL_VALIDATION_HEADER)) {
             return false;
         }
 

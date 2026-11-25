@@ -35,6 +35,7 @@ return (static function (): array {
             EventDispatcher\Kafka\NotifyVisitToKafka::class,
             EventDispatcher\RedisPubSub\NotifyVisitToRedis::class,
             EventDispatcher\UpdateGeoLiteDb::class,
+            EventDispatcher\UpdateBotIpRanges::class,
         ],
         EventDispatcher\Event\ShortUrlCreated::class => [
             EventDispatcher\Mercure\NotifyNewShortUrlToMercure::class,
@@ -68,6 +69,7 @@ return (static function (): array {
                 EventDispatcher\RedisPubSub\NotifyVisitToRedis::class => ConfigAbstractFactory::class,
                 EventDispatcher\RedisPubSub\NotifyNewShortUrlToRedis::class => ConfigAbstractFactory::class,
                 EventDispatcher\UpdateGeoLiteDb::class => ConfigAbstractFactory::class,
+                EventDispatcher\UpdateBotIpRanges::class => ConfigAbstractFactory::class,
 
                 EventDispatcher\Helper\EnabledListenerChecker::class => ConfigAbstractFactory::class,
             ],
@@ -105,6 +107,9 @@ return (static function (): array {
                     EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
                 ],
                 EventDispatcher\UpdateGeoLiteDb::class => [
+                    EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
+                ],
+                EventDispatcher\UpdateBotIpRanges::class => [
                     EventDispatcher\CloseDbConnectionEventListenerDelegator::class,
                 ],
             ],
@@ -180,6 +185,11 @@ return (static function (): array {
                 GeolocationDbUpdater::class,
                 'Logger_Shlink',
                 EventDispatcherInterface::class,
+            ],
+            EventDispatcher\UpdateBotIpRanges::class => [
+                BotIp\BotIpRangesUpdaterInterface::class,
+                Config\Options\BotIpOptions::class,
+                'Logger_Shlink',
             ],
 
             EventDispatcher\Helper\EnabledListenerChecker::class => [

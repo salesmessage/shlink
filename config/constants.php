@@ -25,6 +25,40 @@ const IP_ADDRESS_REQUEST_ATTRIBUTE = 'remote_address';
 const REDIRECT_URL_REQUEST_ATTRIBUTE = 'redirect_url';
 
 /**
+ * Long URLs on these hosts get no query of the visit, only the one stored with the short URL
+ */
+const SENSITIVE_HOSTS = [
+    'glo3d.net',
+];
+
+/**
+ * Sent when Shlink fetches a long URL itself (title resolution), so a long URL that is one of our short URLs does not
+ * count that fetch as a click (SWR-19123)
+ */
+const URL_VALIDATION_HEADER = 'X-Shlink-Url-Validation';
+
+/**
+ * Lowercase user agent fragments of link previews and non-browser clients seen on short URLs that CrawlerDetect does
+ * not flag as bots
+ */
+const BOT_USER_AGENT_FRAGMENTS = [
+    'linkpresentation',
+    'googlemessages',
+    'pagerenderer',
+    'sprinklr',
+    'sogou',
+    'viberurldownloader',
+    'line-poker',
+    'signal-desktop',
+    // SWR-26047: non-browser clients seen on short URLs and not flagged, 2026-10-21..2026-11-03
+    'pcp-stier-sdk',
+    'antispam/',
+    'riskscanner/',
+    'google-safety',
+    'msie 8.0;',
+];
+
+/**
  * List of ISO 3166-1 alpha-2 two-letter country codes https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
  */
 const ISO_COUNTRY_CODES = [

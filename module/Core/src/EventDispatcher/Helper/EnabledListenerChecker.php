@@ -41,6 +41,8 @@ readonly class EnabledListenerChecker implements EnabledListenerCheckerInterface
             EventDispatcher\Matomo\SendVisitToMatomo::class => $this->matomoOptions->enabled,
             EventDispatcher\UpdateGeoLiteDb::class => $this->geoLiteOptions->hasLicenseKey(),
             EventDispatcher\Kafka\NotifyVisitToKafka::class => $this->kafkaEnabled,
+            // Bot detection by IP needs no integration: its ranges are refreshed whatever else is enabled
+            EventDispatcher\UpdateBotIpRanges::class => true,
             default => false, // Any unknown async listener should not be enabled by default
         };
     }
