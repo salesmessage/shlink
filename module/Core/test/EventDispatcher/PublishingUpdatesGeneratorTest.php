@@ -15,7 +15,9 @@ use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifier;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
 use Shlinkio\Shlink\Core\ShortUrl\Transformer\ShortUrlDataTransformer;
+use Shlinkio\Shlink\Core\Visit\DeviceClassifier;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\Core\Visit\Model\VisitsSummary;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
@@ -78,10 +80,13 @@ class PublishingUpdatesGeneratorTest extends TestCase
                     'referer' => '',
                     'userAgent' => '',
                     'visitLocation' => null,
-                    'date' => $visit->date->toAtomString(),
+                    'date' => $visit->date->setTimezone('UTC')->toAtomString(),
                     'potentialBot' => false,
                     'visitedUrl' => '',
                     'redirectUrl' => null,
+                    'id' => 0,
+                    'deviceType' => DeviceClass::OTHER->value,
+                    'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
                 ],
             ],
             $update->payload,
@@ -106,11 +111,14 @@ class PublishingUpdatesGeneratorTest extends TestCase
                     'referer' => '',
                     'userAgent' => '',
                     'visitLocation' => null,
-                    'date' => $orphanVisit->date->toAtomString(),
+                    'date' => $orphanVisit->date->setTimezone('UTC')->toAtomString(),
                     'potentialBot' => false,
                     'visitedUrl' => $orphanVisit->visitedUrl,
                     'type' => $orphanVisit->type->value,
                     'redirectUrl' => null,
+                    'id' => 0,
+                    'deviceType' => DeviceClass::OTHER->value,
+                    'deviceTypeDetail' => DeviceClassifier::DETAIL_UNKNOWN,
                 ],
             ],
             $update->payload,

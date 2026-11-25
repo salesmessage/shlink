@@ -252,6 +252,21 @@
                         "type": "string",
                         "nullable":  true,
                         "description": "The URL to which the visitor was redirected, or null if a redirect did not occur, like for 404 requests or pixel tracking"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "This visit's own stable identity, which is never reused"
+                    },
+                    "deviceType": {
+                        "type": "string",
+                        "nullable": true,
+                        "enum": ["mobile", "tablet", "desktop", "other"],
+                        "description": "The device class assigned to this visit. Anything not positively recognized as mobile, tablet or desktop is reported as other, never as desktop. Null for imported visits and visits captured before device classification existed"
+                    },
+                    "deviceTypeDetail": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "The underlying device type the other class stands for (smart-tv, console), or unknown where it could not be determined. Null when deviceType is not other"
                     }
                 },
                 "example": {

@@ -10,6 +10,8 @@ use Shlinkio\Shlink\Common\Entity\AbstractEntity;
 use Shlinkio\Shlink\Common\Exception\InvalidArgumentException;
 use Shlinkio\Shlink\Common\Util\IpAddress;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
+use Shlinkio\Shlink\Core\Visit\DeviceClassifier;
+use Shlinkio\Shlink\Core\Visit\Model\DeviceClass;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkOrphanVisit;
@@ -31,6 +33,8 @@ class Visit extends AbstractEntity implements JsonSerializable
         public readonly string|null $redirectUrl = null,
         private(set) VisitLocation|null $visitLocation = null,
         public readonly Chronos $date = new Chronos(),
+        public readonly DeviceClass|null $deviceType = null,
+        public readonly string|null $deviceTypeDetail = null,
     ) {}
 
     public static function forValidShortUrl(ShortUrl $shortUrl, Visitor $visitor, bool $anonymize = true): self
@@ -60,6 +64,7 @@ class Visit extends AbstractEntity implements JsonSerializable
         bool $anonymize,
     ): self {
         $geolocation = $visitor->geolocation;
+        $deviceClassification = DeviceClassifier::classify($visitor->userAgent);
         return new self(
             shortUrl: $shortUrl,
             type: $type,
@@ -70,6 +75,8 @@ class Visit extends AbstractEntity implements JsonSerializable
             visitedUrl: $visitor->visitedUrl,
             redirectUrl: $visitor->redirectUrl,
             visitLocation: $geolocation !== null ? VisitLocation::fromLocation($geolocation) : null,
+            deviceType: $deviceClassification->class,
+            deviceTypeDetail: $deviceClassification->detail,
         );
     }
 
@@ -147,12 +154,17 @@ class Visit extends AbstractEntity implements JsonSerializable
     {
         $base = [
             'referer' => $this->referer,
-            'date' => $this->date->toAtomString(),
+            // Core reads the date as UTC (VisitDto, ClickRecordedDto), whatever the TZ of this service
+            'date' => $this->date->setTimezone('UTC')->toAtomString(),
             'userAgent' => $this->userAgent,
             'visitLocation' => $this->visitLocation,
             'potentialBot' => $this->potentialBot,
             'visitedUrl' => $this->visitedUrl,
             'redirectUrl' => $this->redirectUrl,
+            // Read by core for the REST visits and the Kafka visit event
+            'id' => (int) $this->getId(),
+            'deviceType' => $this->deviceType?->value,
+            'deviceTypeDetail' => $this->deviceTypeDetail,
         ];
         if (!$this->isOrphan()) {
             return $base;

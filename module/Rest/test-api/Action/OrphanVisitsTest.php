@@ -11,6 +11,8 @@ use Shlinkio\Shlink\Common\Paginator\Paginator;
 use Shlinkio\Shlink\Core\Visit\Model\OrphanVisitType;
 use Shlinkio\Shlink\TestUtils\ApiTest\ApiTestCase;
 
+use function array_map;
+
 class OrphanVisitsTest extends ApiTestCase
 {
     private const array INVALID_SHORT_URL = [
@@ -22,6 +24,8 @@ class OrphanVisitsTest extends ApiTestCase
         'visitedUrl' => 'https://example.com/short',
         'type' => 'invalid_short_url',
         'redirectUrl' => null,
+        'deviceType' => 'other',
+        'deviceTypeDetail' => 'unknown',
     ];
     private const array REGULAR_NOT_FOUND = [
         'referer' => 'https://s.test/foo/bar',
@@ -32,6 +36,8 @@ class OrphanVisitsTest extends ApiTestCase
         'visitedUrl' => 'https://s.test/bar',
         'type' => 'regular_404',
         'redirectUrl' => null,
+        'deviceType' => 'other',
+        'deviceTypeDetail' => 'unknown',
     ];
     private const array BASE_URL = [
         'referer' => 'https://s.test',
@@ -42,6 +48,8 @@ class OrphanVisitsTest extends ApiTestCase
         'visitedUrl' => 'https://s.test/foo',
         'type' => 'base_url',
         'redirectUrl' => null,
+        'deviceType' => 'other',
+        'deviceTypeDetail' => 'unknown',
     ];
 
     #[Test, DataProvider('provideQueries')]
@@ -53,11 +61,20 @@ class OrphanVisitsTest extends ApiTestCase
     ): void {
         $resp = $this->callApiWithKey(self::METHOD_GET, '/visits/orphan', [RequestOptions::QUERY => $query]);
         $payload = $this->getJsonResponsePayload($resp);
+        /** @var list<array<string, mixed>> $visits */
         $visits = $payload['visits']['data'] ?? [];
 
         self::assertEquals($totalItems, $payload['visits']['pagination']['totalItems'] ?? Paginator::ALL_ITEMS);
         self::assertCount($expectedAmount, $visits);
-        self::assertEquals($expectedVisits, $visits);
+        foreach ($visits as $visit) {
+            // Ids come from a sequence that is not reset between tests, so only their type is checked
+            self::assertIsInt($visit['id'] ?? null);
+            self::assertGreaterThan(0, $visit['id']);
+        }
+        self::assertEquals($expectedVisits, array_map(static function (array $visit): array {
+            unset($visit['id']);
+            return $visit;
+        }, $visits));
     }
 
     public static function provideQueries(): iterable

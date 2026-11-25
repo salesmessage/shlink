@@ -87,4 +87,21 @@ return static function (ClassMetadata $metadata, array $emConfig): void {
         ->length(Visitor::REDIRECT_URL_MAX_LENGTH)
         ->nullable()
         ->build();
+
+    new FieldBuilder($builder, [
+        'fieldName' => 'deviceType',
+        'type' => Types::STRING,
+        'enumType' => Visit\Model\DeviceClass::class,
+    ])
+        ->columnName('device_type')
+        ->length(32)
+        ->nullable()
+        ->build();
+
+    $builder
+        ->createField('deviceTypeDetail', Types::STRING)
+        ->columnName('device_type_detail')
+        ->length(64)
+        ->nullable()
+        ->build();
 };
