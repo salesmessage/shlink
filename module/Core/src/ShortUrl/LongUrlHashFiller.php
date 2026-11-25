@@ -35,12 +35,17 @@ readonly class LongUrlHashFiller implements LongUrlHashFillerInterface
 
             $conn->transactional(static function (Connection $conn) use ($rows): void {
                 foreach ($rows as $row) {
-                    $conn->update(
-                        'short_urls',
-                        ['long_url_hash' => stringToBinHash($row['original_url'])],
-                        ['id' => $row['id']],
-                        ['long_url_hash' => Types::BINARY],
-                    );
+                    // Only while the hash is still empty: an edit of the long URL since the read set its own hash
+                    $qb = $conn->createQueryBuilder();
+                    $qb
+                        ->update('short_urls')
+                        ->set('long_url_hash', ':hash')
+                        ->where($qb->expr()->eq('id', ':id'))
+                        ->andWhere($qb->expr()->eq('long_url_hash', ':empty'))
+                        ->setParameter('hash', stringToBinHash($row['original_url']), Types::BINARY)
+                        ->setParameter('id', $row['id'])
+                        ->setParameter('empty', '', Types::BINARY)
+                        ->executeStatement();
                 }
             });
 
