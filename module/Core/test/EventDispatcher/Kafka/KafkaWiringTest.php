@@ -63,20 +63,34 @@ class KafkaWiringTest extends TestCase
         $inner = $this->createMock(ProducerInterface::class);
         $inner->expects($this->exactly(2))->method('send');
         $inner->expects($this->once())->method('flush');
-        $builds = 0;
-        $producer = new LazyProducer(static function () use ($inner, &$builds): ProducerInterface {
-            $builds++;
-            return $inner;
-        });
+        // A counting factory object read through a method: the analyzer keeps a narrowed counter variable or
+        // property at its first asserted value and reports the second assertion as impossible.
+        $factory = new class($inner) {
+            private int $builds = 0;
+
+            public function __construct(private readonly ProducerInterface $inner) {}
+
+            public function __invoke(): ProducerInterface
+            {
+                $this->builds++;
+                return $this->inner;
+            }
+
+            public function builds(): int
+            {
+                return $this->builds;
+            }
+        };
+        $producer = new LazyProducer($factory(...));
 
         $producer->flush();
-        self::assertSame(0, $builds);
+        self::assertSame(0, $factory->builds());
 
         $producer->send($this->createStub(RouteInterface::class), $this->createStub(MessageInterface::class));
         $producer->send($this->createStub(RouteInterface::class), $this->createStub(MessageInterface::class));
         $producer->flush();
 
-        self::assertSame(1, $builds);
+        self::assertSame(1, $factory->builds());
     }
 
     private function container(array $kafkaConfig): ServiceManager
