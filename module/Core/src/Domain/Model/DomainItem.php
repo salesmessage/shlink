@@ -9,18 +9,17 @@ use Shlinkio\Shlink\Core\Config\NotFoundRedirectConfigInterface;
 use Shlinkio\Shlink\Core\Config\NotFoundRedirects;
 use Shlinkio\Shlink\Core\Domain\Entity\Domain;
 
-final class DomainItem implements JsonSerializable
+final readonly class DomainItem implements JsonSerializable
 {
     private function __construct(
-        private readonly string $authority,
-        public readonly NotFoundRedirectConfigInterface $notFoundRedirectConfig,
-        public readonly bool $isDefault,
-    ) {
-    }
+        private string $authority,
+        public NotFoundRedirectConfigInterface $notFoundRedirectConfig,
+        public bool $isDefault,
+    ) {}
 
     public static function forNonDefaultDomain(Domain $domain): self
     {
-        return new self($domain->getAuthority(), $domain, false);
+        return new self($domain->authority, $domain, false);
     }
 
     public static function forDefaultDomain(string $defaultDomain, NotFoundRedirectConfigInterface $config): self

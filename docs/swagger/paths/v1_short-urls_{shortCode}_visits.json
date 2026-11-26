@@ -11,13 +11,7 @@
                 "$ref": "../parameters/version.json"
             },
             {
-                "name": "shortCode",
-                "in": "path",
-                "description": "The short code for the short URL from which we want to get the visits.",
-                "required": true,
-                "schema": {
-                    "type": "string"
-                }
+                "$ref": "../parameters/shortCode.json"
             },
             {
                 "$ref": "../parameters/domain.json"
@@ -106,7 +100,8 @@
                                         "date": "2015-08-20T05:05:03+04:00",
                                         "userAgent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0 Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:42.0) Gecko/20100101 Firefox/42.0",
                                         "visitLocation": null,
-                                        "potentialBot": false
+                                        "potentialBot": false,
+                                        "visitedUrl": "https://s.test"
                                     },
                                     {
                                         "referer": "https://t.co",
@@ -121,14 +116,16 @@
                                             "regionName": "California",
                                             "timezone": "America/Los_Angeles"
                                         },
-                                        "potentialBot": false
+                                        "potentialBot": false,
+                                        "visitedUrl": "https://s.test"
                                     },
                                     {
                                         "referer": null,
                                         "date": "2015-08-20T05:05:03+04:00",
                                         "userAgent": "some_web_crawler/1.4",
                                         "visitLocation": null,
-                                        "potentialBot": true
+                                        "potentialBot": true,
+                                        "visitedUrl": "https://s.test"
                                     }
                                 ],
                                 "pagination": {
@@ -151,11 +148,79 @@
                             "$ref": "../definitions/Error.json"
                         },
                         "examples": {
-                            "Short URL not found with API v3 and newer": {
+                            "Short URL not found": {
                                 "$ref": "../examples/short-url-not-found-v3.json"
-                            },
-                            "Short URL not found previous to API v3": {
-                                "$ref": "../examples/short-url-not-found-v2.json"
+                            }
+                        }
+                    }
+                }
+            },
+            "default": {
+                "description": "Unexpected error.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "../definitions/Error.json"
+                        }
+                    }
+                }
+            }
+        }
+    },
+
+    "delete": {
+        "operationId": "deleteShortUrlVisits",
+        "tags": [
+            "Visits"
+        ],
+        "summary": "Delete visits for short URL",
+        "description": "Delete all existing visits on the short URL behind provided short code.",
+        "parameters": [
+            {
+                "$ref": "../parameters/version.json"
+            },
+            {
+                "$ref": "../parameters/shortCode.json"
+            },
+            {
+                "$ref": "../parameters/domain.json"
+            }
+        ],
+        "security": [
+            {
+                "ApiKey": []
+            }
+        ],
+        "responses": {
+            "200": {
+                "description": "Deleted visits",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "deletedVisits": {
+                                    "description": "Amount of affected visits",
+                                    "type": "number"
+                                }
+                            }
+                        },
+                        "example": {
+                            "deletedVisits": 536
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "The short code does not belong to any short URL.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "../definitions/Error.json"
+                        },
+                        "examples": {
+                            "Short URL not found": {
+                                "$ref": "../examples/short-url-not-found-v3.json"
                             }
                         }
                     }

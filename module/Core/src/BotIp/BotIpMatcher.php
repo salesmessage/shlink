@@ -12,7 +12,7 @@ use IPLib\Range\RangeInterface;
 use Psr\Log\LoggerInterface;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 use Shlinkio\Shlink\Core\BotIp\Repository\BotIpRangeRepositoryInterface;
-use Shlinkio\Shlink\Core\Options\BotIpOptions;
+use Shlinkio\Shlink\Core\Config\Options\BotIpOptions;
 use Throwable;
 
 use function array_slice;
@@ -27,16 +27,15 @@ class BotIpMatcher implements BotIpMatcherInterface
 {
     /** @var array<string, RangeInterface[]> */
     private array $rangesBySource = [];
-    private ?int $loadedAt = null;
+    private int|null $loadedAt = null;
 
     public function __construct(
         private readonly BotIpRangeRepositoryInterface $repo,
         private readonly BotIpOptions $options,
         private readonly LoggerInterface $logger,
-    ) {
-    }
+    ) {}
 
-    public function isBotAddress(?string $address): bool
+    public function isBotAddress(string|null $address): bool
     {
         $parsedAddress = $address === null ? null : Factory::parseAddressString($address);
         if ($parsedAddress === null) {
@@ -54,7 +53,7 @@ class BotIpMatcher implements BotIpMatcherInterface
         return false;
     }
 
-    public function isInBotNetwork(?string $address, BotIpSource $source): bool
+    public function isInBotNetwork(string|null $address, BotIpSource $source): bool
     {
         $parsedAddress = $address === null ? null : Factory::parseAddressString($address);
         $network = $parsedAddress === null ? null : $this->networkOf($parsedAddress);
@@ -72,9 +71,9 @@ class BotIpMatcher implements BotIpMatcherInterface
         return false;
     }
 
-    private function networkOf(AddressInterface $address): ?RangeInterface
+    private function networkOf(AddressInterface $address): RangeInterface|null
     {
-        if (! $address instanceof IPv4) {
+        if (!$address instanceof IPv4) {
             return null;
         }
 
@@ -88,7 +87,7 @@ class BotIpMatcher implements BotIpMatcherInterface
     private function rangesBySource(): array
     {
         $now = Chronos::now()->getTimestamp();
-        if ($this->loadedAt !== null && $now - $this->loadedAt < $this->options->checkIntervalSeconds) {
+        if ($this->loadedAt !== null && ($now - $this->loadedAt) < $this->options->checkIntervalSeconds) {
             return $this->rangesBySource;
         }
 

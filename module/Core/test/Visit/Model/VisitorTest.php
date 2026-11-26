@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Core\Visit\Model;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Shlinkio\Shlink\Core\Options\TrackingOptions;
+use Shlinkio\Shlink\Core\Config\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 
 use function random_int;
@@ -15,13 +17,10 @@ use function substr;
 
 class VisitorTest extends TestCase
 {
-    /**
-     * @test
-     * @dataProvider provideParams
-     */
+    #[Test, DataProvider('provideParams')]
     public function providedFieldsValuesAreCropped(array $params, array $expected): void
     {
-        $visitor = new Visitor(...$params);
+        $visitor = Visitor::fromParams(...$params);
         ['userAgent' => $userAgent, 'referer' => $referer, 'remoteAddress' => $remoteAddress] = $expected;
 
         self::assertEquals($userAgent, $visitor->userAgent);
@@ -29,7 +28,7 @@ class VisitorTest extends TestCase
         self::assertEquals($remoteAddress, $visitor->remoteAddress);
     }
 
-    public function provideParams(): iterable
+    public static function provideParams(): iterable
     {
         yield 'all values are bigger' => [
             [str_repeat('a', 1000), str_repeat('b', 2000), str_repeat('c', 500), ''],
@@ -49,8 +48,8 @@ class VisitorTest extends TestCase
         ];
         yield 'random strings' => [
             [
-                $userAgent = $this->generateRandomString(2000),
-                $referer = $this->generateRandomString(50),
+                $userAgent = self::generateRandomString(2000),
+                $referer = self::generateRandomString(50),
                 null,
                 '',
             ],
@@ -62,7 +61,7 @@ class VisitorTest extends TestCase
         ];
     }
 
-    private function generateRandomString(int $length): string
+    private static function generateRandomString(int $length): string
     {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $charactersLength = strlen($characters);
@@ -73,14 +72,14 @@ class VisitorTest extends TestCase
         return $randomString;
     }
 
-    /** @test */
+    #[Test]
     public function newNormalizedInstanceIsCreatedFromTrackingOptions(): void
     {
-        $visitor = new Visitor(
-            $this->generateRandomString(2000),
-            $this->generateRandomString(2000),
-            $this->generateRandomString(2000),
-            $this->generateRandomString(2000),
+        $visitor = Visitor::fromParams(
+            self::generateRandomString(2000),
+            self::generateRandomString(2000),
+            self::generateRandomString(2000),
+            self::generateRandomString(2000),
         );
         $normalizedVisitor = $visitor->normalizeForTrackingOptions(new TrackingOptions(
             disableIpTracking: true,
@@ -97,17 +96,97 @@ class VisitorTest extends TestCase
         self::assertNotNull($visitor->remoteAddress);
     }
 
-    /** @test */
+    #[Test, DataProvider('provideNonBrowserUserAgents')]
+    public function nonBrowserClientIsPotentialBot(string $userAgent): void
+    {
+        self::assertTrue(Visitor::fromParams(userAgent: $userAgent)->potentialBot);
+    }
+
+    /**
+     * Link previews and non-browser clients seen on short URLs that CrawlerDetect does not flag
+     * (BOT_USER_AGENT_FRAGMENTS), and requests without a user agent, which browsers and apps always send
+     */
+    public static function provideNonBrowserUserAgents(): iterable
+    {
+        yield 'iMessage link preview' => ['Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 LinkPresentation/1.0'];
+        yield 'Google Messages' => ['Mozilla/5.0 (Linux; Android 14) GoogleMessages/20.0'];
+        yield 'page renderer' => ['Mozilla/5.0 (compatible; PageRenderer/1.0)'];
+        yield 'Sprinklr' => ['Sprinklr Crawler/1.0'];
+        yield 'Sogou' => ['Sogou web spider/4.0'];
+        yield 'Viber' => ['Mozilla/5.0 ViberUrlDownloader/0.1'];
+        yield 'LINE' => ['line-poker/1.0'];
+        yield 'Signal link preview' => ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Signal-Desktop/6.42.0'];
+        yield 'pcp-stier-sdk' => ['pcp-stier-sdk/1.5.1 na/na'];
+        yield 'antispam' => ['antispam/1.0.0'];
+        yield 'RiskScanner' => ['RiskScanner/1.0'];
+        yield 'Google-Safety' => ['Google-Safety'];
+        yield 'IE8' => ['Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; WOW64; Trident/4.0)'];
+        yield 'empty' => [''];
+        yield 'blank' => ['   '];
+        // The full user agents of the fork's ClickTrackingTest, so the newer CrawlerDetect keeps flagging them
+        yield 'iMessage link preview, full' => [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+                . '(KHTML, like Gecko) Version/17.0 Safari/605.1.15 LinkPresentation/1.0',
+        ];
+        yield 'Google Messages link preview, full' => [
+            'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, '
+                . 'like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 GoogleMessages/1.0',
+        ];
+        yield 'Sprinklr, compatible' => ['Mozilla/5.0 (compatible; Sprinklr/1.0)'];
+        yield 'Sogou, compatible' => ['Mozilla/5.0 (compatible; Sogou/1.0)'];
+        yield 'Viber, compatible' => ['Mozilla/5.0 (compatible; ViberUrlDownloader)'];
+        yield 'Facebook crawler' => ['cf-facebook'];
+    }
+
+    #[Test, DataProvider('provideAppsPeopleOpenLinksWith')]
+    public function appPeopleOpenLinksWithIsNotPotentialBot(string $userAgent): void
+    {
+        self::assertFalse(Visitor::fromParams(userAgent: $userAgent)->potentialBot);
+    }
+
+    /**
+     * Left out of the bot rules on purpose: people may be behind them
+     */
+    public static function provideAppsPeopleOpenLinksWith(): iterable
+    {
+        yield 'TextFree' => ['textfreeUltra 13.28.1'];
+        yield 'Google Lens' => ['Google-Lens'];
+        yield 'Android app' => ['Dalvik/2.1.0 (Linux; U; Android 13; SM-A326U Build/TP1A.220624.014)'];
+        yield 'Firefox 115' => ['Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0'];
+        // Ordinary browsers of the fork's ClickTrackingTest
+        yield 'Chrome desktop' => [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                . 'Chrome/120.0.0.0 Safari/537.36',
+        ];
+        yield 'Chrome linux' => [
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                . 'Chrome/153.0.0.0 Safari/537.36',
+        ];
+        yield 'Firefox linux' => ['Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'];
+        yield 'Safari iPhone' => [
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, '
+                . 'like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        ];
+    }
+
+    #[Test]
     public function markingAsPotentialBotKeepsTheRestAndSurvivesNormalization(): void
     {
-        $visitor = new Visitor('Mozilla/5.0 (X11; Linux x86_64) Chrome/141.0.0.0', 'ref', '66.249.80.201', 'url');
+        $visitor = Visitor::fromParams(
+            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/141.0.0.0',
+            referer: 'ref',
+            remoteAddress: '66.249.80.201',
+            visitedUrl: 'url',
+        );
         $bot = $visitor->markAsPotentialBot();
 
-        self::assertFalse($visitor->isPotentialBot());
-        self::assertTrue($bot->isPotentialBot());
+        self::assertFalse($visitor->potentialBot);
+        self::assertTrue($bot->potentialBot);
         self::assertEquals($visitor->userAgent, $bot->userAgent);
+        self::assertEquals($visitor->referer, $bot->referer);
         self::assertEquals($visitor->remoteAddress, $bot->remoteAddress);
+        self::assertEquals($visitor->visitedUrl, $bot->visitedUrl);
         $normalized = $bot->normalizeForTrackingOptions(new TrackingOptions(disableUaTracking: true));
-        self::assertTrue($normalized->isPotentialBot());
+        self::assertTrue($normalized->potentialBot);
     }
 }

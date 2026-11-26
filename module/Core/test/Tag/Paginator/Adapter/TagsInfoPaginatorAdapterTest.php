@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Core\Tag\Paginator\Adapter;
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Core\Tag\Model\TagsParams;
@@ -13,7 +14,7 @@ use Shlinkio\Shlink\Core\Tag\Repository\TagRepositoryInterface;
 class TagsInfoPaginatorAdapterTest extends TestCase
 {
     private TagsInfoPaginatorAdapter $adapter;
-    private MockObject & TagRepositoryInterface $repo;
+    private MockObject&TagRepositoryInterface $repo;
 
     protected function setUp(): void
     {
@@ -21,14 +22,14 @@ class TagsInfoPaginatorAdapterTest extends TestCase
         $this->adapter = new TagsInfoPaginatorAdapter($this->repo, TagsParams::fromRawData([]), null);
     }
 
-    /** @test */
+    #[Test]
     public function getSliceIsDelegatedToRepository(): void
     {
         $this->repo->expects($this->once())->method('findTagsWithInfo')->willReturn([]);
         $this->adapter->getSlice(1, 1);
     }
 
-    /** @test */
+    #[Test]
     public function getNbResultsIsDelegatedToRepository(): void
     {
         $this->repo->expects($this->once())->method('matchSingleScalarResult')->willReturn(3);

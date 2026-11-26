@@ -5,75 +5,72 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\CLI\Command\Visit;
 
 use Cake\Chronos\Chronos;
-use Shlinkio\Shlink\CLI\Command\Util\AbstractLockedCommand;
-use Shlinkio\Shlink\CLI\Command\Util\LockedCommandConfig;
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
+use Shlinkio\Shlink\CLI\Command\Util\CommandUtils;
+use Shlinkio\Shlink\CLI\Command\Util\LockConfig;
 use Shlinkio\Shlink\Core\BotIp\Model\ReclassificationResult;
-use Shlinkio\Shlink\Core\BotIp\VisitBotReclassifier;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
+use Shlinkio\Shlink\Core\BotIp\VisitBotReclassifierInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Attribute\Option;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Lock\LockFactory;
 use Throwable;
 
-use function is_numeric;
-use function is_string;
+use function ctype_digit;
 use function sprintf;
 
 /**
- * SWR-26047: a one-off pass that flags past visits as potential bots with today's rules. Not scheduled.
+ * A one-off pass that flags past visits as potential bots with today's rules (SWR-26047). Not scheduled.
  */
-class ReclassifyBotVisitsCommand extends AbstractLockedCommand
+#[AsCommand(
+    name: ReclassifyBotVisitsCommand::NAME,
+    description: 'Flags past visits to short URLs as potential bots when the current user agent rules or the bot IP '
+    . 'ranges match them. The flag is only set, never cleared, and the visit counts of short URLs '
+    . '(visitsSummary) are not recalculated. An empty stored user agent counts as a bot: if DISABLE_UA_TRACKING '
+    . 'was on during the period, every visit matches, so run --dry-run first and compare the "User agent" row '
+    . 'with "Scanned".',
+)]
+class ReclassifyBotVisitsCommand extends Command
 {
-    public const NAME = 'visit:reclassify-bots';
+    public const string NAME = 'visit:reclassify-bots';
 
-    private const DEFAULT_BATCH_SIZE = 1000;
+    private const string DEFAULT_BATCH_SIZE = '1000';
 
-    public function __construct(private readonly VisitBotReclassifier $reclassifier, LockFactory $locker)
-    {
-        parent::__construct($locker);
+    public function __construct(
+        private readonly VisitBotReclassifierInterface $reclassifier,
+        private readonly LockFactory $locker,
+    ) {
+        parent::__construct();
     }
 
-    protected function configure(): void
-    {
-        $this
-            ->setName(self::NAME)
-            ->setDescription(
-                'Flags past visits to short URLs as potential bots when the current user agent rules or the bot IP '
-                . 'ranges match them. The flag is only set, never cleared. An empty stored user agent counts as a '
-                . 'bot: if DISABLE_UA_TRACKING was on during the period, every visit matches, so run --dry-run first '
-                . 'and compare the "User agent" row with "Scanned".',
-            )
-            ->addOption('since', null, InputOption::VALUE_REQUIRED, 'Only visits on or after this date (Y-m-d)')
-            ->addOption('from-id', null, InputOption::VALUE_REQUIRED, 'Resume after this visit id', '0')
-            ->addOption(
-                'batch-size',
-                null,
-                InputOption::VALUE_REQUIRED,
-                'Visits read per query',
-                (string) self::DEFAULT_BATCH_SIZE,
-            )
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Count the visits that would be flagged only');
-    }
-
-    protected function lockedExecute(InputInterface $input, OutputInterface $output): int
-    {
-        $io = new SymfonyStyle($input, $output);
-
-        $since = $this->parseSince($input->getOption('since'));
-        $fromId = $input->getOption('from-id');
-        $batchSize = $input->getOption('batch-size');
-        if ($since === null || ! is_numeric($fromId) || ! is_numeric($batchSize) || (int) $batchSize < 1) {
+    public function __invoke(
+        SymfonyStyle $io,
+        #[Option('Only visits on or after this date (Y-m-d)')] string|null $since = null,
+        #[Option('Resume after this visit id', name: 'from-id')] string $fromId = '0',
+        #[Option('Visits read per query', name: 'batch-size')] string $batchSize = self::DEFAULT_BATCH_SIZE,
+        #[Option('Count the visits that would be flagged only', name: 'dry-run')] bool $dryRun = false,
+    ): int {
+        $sinceDate = $this->parseSince($since);
+        if ($sinceDate === null || !ctype_digit($fromId) || !ctype_digit($batchSize) || (int) $batchSize < 1) {
             $io->error('Provide --since as Y-m-d, and numeric --from-id and --batch-size.');
-            return ExitCodes::EXIT_FAILURE;
+            return Command::FAILURE;
         }
 
-        $dryRun = (bool) $input->getOption('dry-run');
+        return CommandUtils::executeWithLock(
+            $this->locker,
+            LockConfig::nonBlocking(self::NAME),
+            $io,
+            fn () => $this->reclassify($io, $sinceDate, (int) $fromId, (int) $batchSize, $dryRun),
+        );
+    }
+
+    private function reclassify(SymfonyStyle $io, Chronos $since, int $fromId, int $batchSize, bool $dryRun): int
+    {
         $result = $this->reclassifier->reclassify(
             $since,
-            (int) $fromId,
-            (int) $batchSize,
+            $fromId,
+            $batchSize,
             $dryRun,
             static fn (ReclassificationResult $r) => $io->writeln(
                 sprintf('Up to visit %d: %d scanned, %d flagged', $r->lastId, $r->scanned, $r->marked()),
@@ -93,12 +90,12 @@ class ReclassifyBotVisitsCommand extends AbstractLockedCommand
             $result->lastId,
         ));
 
-        return ExitCodes::EXIT_SUCCESS;
+        return Command::SUCCESS;
     }
 
-    private function parseSince(mixed $since): ?Chronos
+    private function parseSince(string|null $since): Chronos|null
     {
-        if (! is_string($since)) {
+        if ($since === null) {
             return null;
         }
 
@@ -107,10 +104,5 @@ class ReclassifyBotVisitsCommand extends AbstractLockedCommand
         } catch (Throwable) {
             return null;
         }
-    }
-
-    protected function getLockConfig(): LockedCommandConfig
-    {
-        return LockedCommandConfig::nonBlocking(self::NAME);
     }
 }

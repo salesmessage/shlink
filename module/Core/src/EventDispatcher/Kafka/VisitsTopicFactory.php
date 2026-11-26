@@ -14,7 +14,7 @@ class VisitsTopicFactory
     {
         $config = $container->get('config')['kafka'] ?? [];
 
-        if (! ($config['enabled'] ?? false)) {
+        if (!($config['enabled'] ?? false)) {
             return new NullRoute();
         }
 

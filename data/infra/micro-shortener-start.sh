@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+# Boot script of the micro-shortener service of sm-tool, run from the bind mount at /app (see AGENTS.md)
 set -e
 
 cd /app
@@ -7,32 +8,21 @@ if [ ! -d ./vendor ]; then
     composer install --no-interaction
 fi
 
-# The FastRoute cache is enabled unconditionally and does not track BASE_PATH or route changes
-rm -f data/cache/fastroute_cached_routes.php data/cache/app_config.php
-
-echo "Creating fresh database if needed..."
-php bin/cli db:create -n
-
-echo "Updating database..."
-php bin/cli db:migrate -n
-
-echo "Generating proxies..."
-php bin/doctrine orm:generate-proxies -n
-
-echo "Clearing entities cache..."
-php bin/doctrine orm:clear-cache:metadata -n
-
-# INITIAL_API_KEY is deliberately not passed to the server: it makes the openswoole master query the database
-# before forking, and every worker then inherits that one connection and breaks on its first query
-if [ -n "${LOCAL_API_KEY}" ]; then
-    echo "Ensuring local API key exists..."
-    php -r '
-        $container = require "config/container.php";
-        $container->get(Doctrine\ORM\EntityManager::class)
-                  ->getRepository(Shlinkio\Shlink\Rest\Entity\ApiKey::class)
-                  ->createInitialApiKey(getenv("LOCAL_API_KEY"));
-    '
+if [ ! -x ./bin/rr ]; then
+    # The same version as RR_VERSION in the Dockerfile
+    php vendor/bin/rr get --no-interaction --no-config --filter=3.0.1 --location bin/ && chmod +x bin/rr
 fi
 
-# openswoole can believe it is still running after an unclean stop, so retry until it starts
-until php vendor/bin/laminas mezzio:swoole:start; do sleep 1 ; done
+# A cached config would keep an old BASE_PATH or set of routes after the .env or the code changes
+rm -f data/cache/fastroute_cached_routes.php data/cache/app_config.php
+
+flags="--no-interaction --clear-db-cache --skip-download-geolite"
+# Creates the key only when the database has no API key yet
+if [ -n "${LOCAL_API_KEY}" ]; then
+    flags="${flags} --initial-api-key=${LOCAL_API_KEY}"
+fi
+
+# Creates the database if needed, migrates it, generates the ORM proxies and clears the caches
+php vendor/bin/shlink-installer init ${flags}
+
+exec ./bin/rr serve -c config/roadrunner/.rr.yml

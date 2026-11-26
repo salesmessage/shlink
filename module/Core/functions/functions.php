@@ -4,43 +4,58 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core;
 
+use BackedEnum;
 use Cake\Chronos\Chronos;
-use Cake\Chronos\ChronosInterface;
-use DateTimeInterface;
 use Doctrine\ORM\Mapping\Builder\FieldBuilder;
+use donatj\UserAgent\UserAgent;
+use donatj\UserAgent\UserAgentParser;
+use GuzzleHttp\Psr7\Query;
+use Hidehalo\Nanoid\Client as NanoidClient;
 use Jaybizzle\CrawlerDetect\CrawlerDetect;
-use Laminas\Filter\Word\CamelCaseToSeparator;
-use Laminas\Filter\Word\CamelCaseToUnderscore;
-use Laminas\InputFilter\InputFilter;
-use PUGX\Shortid\Factory as ShortIdFactory;
+use Psr\Http\Message\ServerRequestInterface;
 use Shlinkio\Shlink\Common\Util\DateRange;
+use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlMode;
+use Shlinkio\Shlink\IpGeolocation\Model\Location;
 
-use function date_default_timezone_get;
-use function Functional\reduce_left;
+use function array_keys;
+use function array_map;
+use function array_pad;
+use function array_reduce;
+use function explode;
+use function hash;
+use function hex2bin;
+use function implode;
 use function is_array;
+use function mb_strtolower;
+use function preg_replace;
 use function print_r;
 use function Shlinkio\Shlink\Common\buildDateRange;
+use function Shlinkio\Shlink\Common\normalizeOptionalDate;
+use function Shlinkio\Shlink\Core\ArrayUtils\map;
 use function sprintf;
 use function str_contains;
 use function str_repeat;
+use function str_replace;
 use function strtolower;
 use function trim;
-use function ucfirst;
 
 use const Shlinkio\Shlink\BOT_USER_AGENT_FRAGMENTS;
+use const Shlinkio\Shlink\IP_ADDRESS_REQUEST_ATTRIBUTE;
 
-function generateRandomShortCode(int $length): string
+function generateRandomShortCode(int $length, ShortUrlMode $mode = ShortUrlMode::STRICT): string
 {
-    static $shortIdFactory;
-    if ($shortIdFactory === null) {
-        $shortIdFactory = new ShortIdFactory();
+    static $nanoIdClient;
+    if ($nanoIdClient === null) {
+        $nanoIdClient = new NanoidClient();
     }
 
-    $alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return $shortIdFactory->generate($length, $alphabet)->serialize();
+    $alphabet = $mode === ShortUrlMode::STRICT
+        ? '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        : '0123456789abcdefghijklmnopqrstuvwxyz';
+    return $nanoIdClient->formattedId($alphabet, $length);
 }
 
-function parseDateFromQuery(array $query, string $dateName): ?Chronos
+function parseDateFromQuery(array $query, string $dateName): Chronos|null
 {
     return normalizeOptionalDate(empty($query[$dateName] ?? null) ? null : Chronos::parse($query[$dateName]));
 }
@@ -53,64 +68,98 @@ function parseDateRangeFromQuery(array $query, string $startDateName, string $en
     return buildDateRange($startDate, $endDate);
 }
 
-/**
- * @return ($date is null ? null : Chronos)
- */
-function normalizeOptionalDate(string|DateTimeInterface|ChronosInterface|null $date): ?Chronos
+function dateRangeToHumanFriendly(DateRange|null $dateRange): string
 {
-    $parsedDate = match (true) {
-        $date === null || $date instanceof Chronos => $date,
-        $date instanceof DateTimeInterface => Chronos::instance($date),
-        default => Chronos::parse($date),
+    $startDate = $dateRange?->startDate;
+    $endDate = $dateRange?->endDate;
+
+    return match (true) {
+        $startDate !== null && $endDate !== null => sprintf(
+            'Between %s and %s',
+            $startDate->toDateTimeString(),
+            $endDate->toDateTimeString(),
+        ),
+        $startDate !== null => sprintf('Since %s', $startDate->toDateTimeString()),
+        $endDate !== null => sprintf('Until %s', $endDate->toDateTimeString()),
+        default => 'All time',
     };
-
-    return $parsedDate?->setTimezone(date_default_timezone_get());
 }
 
-function normalizeDate(string|DateTimeInterface|ChronosInterface $date): Chronos
+function normalizeLocale(string $locale): string
 {
-    return normalizeOptionalDate($date);
+    return trim(strtolower(str_replace('_', '-', $locale)));
 }
 
-function getOptionalIntFromInputFilter(InputFilter $inputFilter, string $fieldName): ?int
+/**
+ * Parse an accept-language-like pattern into a list of locales, optionally filtering out those which do not match a
+ * minimum quality
+ *
+ * @param non-empty-string $acceptLanguage
+ * @return iterable<string>
+ */
+function acceptLanguageToLocales(string $acceptLanguage, float $minQuality = 0): iterable
 {
-    $value = $inputFilter->getValue($fieldName);
-    return $value !== null ? (int) $value : null;
+    /** @var array{string, float|null}[] $acceptLanguagesList */
+    $acceptLanguagesList = map(explode(',', $acceptLanguage), static function (string $lang): array {
+        // Split locale/language and quality (en-US;q=0.7) -> [en-US, q=0.7]
+        [$lang, $qualityString] = array_pad(explode(';', $lang), length: 2, value: '');
+        $normalizedLang = normalizeLocale($lang);
+        $quality = Query::parse(trim($qualityString))['q'] ?? 1;
+
+        return [$normalizedLang, (float) $quality];
+    });
+
+    foreach ($acceptLanguagesList as [$lang, $quality]) {
+        if ($lang !== '*' && $quality >= $minQuality) {
+            yield $lang;
+        }
+    }
 }
 
-function getOptionalBoolFromInputFilter(InputFilter $inputFilter, string $fieldName): ?bool
+/**
+ * Splits a locale into its corresponding language and country codes.
+ * The country code will be null if not present
+ *   'es-AR' -> ['es', 'AR']
+ *   'fr-FR' -> ['fr', 'FR']
+ *   'en' -> ['en', null]
+ *
+ * @return array{string, string|null}
+ */
+function splitLocale(string $locale): array
 {
-    $value = $inputFilter->getValue($fieldName);
-    return $value !== null ? (bool) $value : null;
-}
-
-function getNonEmptyOptionalValueFromInputFilter(InputFilter $inputFilter, string $fieldName): mixed
-{
-    $value = $inputFilter->getValue($fieldName);
-    return empty($value) ? null : $value;
+    /** @var string $lang */
+    [$lang, $countryCode] = array_pad(explode('-', $locale), length: 2, value: null);
+    return [$lang, $countryCode];
 }
 
 function arrayToString(array $array, int $indentSize = 4): string
 {
     $indent = str_repeat(' ', $indentSize);
+    $names = array_keys($array);
     $index = 0;
 
-    return reduce_left($array, static function ($messages, string $name, $_, string $acc) use (&$index, $indent) {
-        $index++;
+    return array_reduce(
+        $names,
+        static function (string $acc, string $name) use (&$index, $indent, $array) {
+            $index++;
+            $messages = $array[$name];
 
-        return $acc . sprintf(
-            "%s%s'%s' => %s",
-            $index === 1 ? '' : "\n",
-            $indent,
-            $name,
-            is_array($messages) ? print_r($messages, true) : $messages,
-        );
-    }, '');
+            return sprintf(
+                "%s%s%s'%s' => %s",
+                $acc,
+                $index === 1 ? '' : "\n",
+                $indent,
+                $name,
+                is_array($messages) ? print_r($messages, true) : $messages,
+            );
+        },
+        '',
+    );
 }
 
 function isCrawler(string $userAgent): bool
 {
-    // SWR-26047: browsers and apps always send a user agent; an empty one is a script
+    // Browsers and apps always send a user agent: an empty one is a script (SWR-26047)
     if (trim($userAgent) === '') {
         return true;
     }
@@ -122,56 +171,120 @@ function isCrawler(string $userAgent): bool
         }
     }
 
-    static $detector;
-    if ($detector === null) {
-        $detector = new CrawlerDetect();
-    }
-
+    static $detector = new CrawlerDetect();
     return $detector->isCrawler($userAgent);
 }
 
-function determineTableName(string $tableName, array $emConfig = []): string
+function parseUserAgent(string $userAgent): UserAgent
 {
-    $schema = $emConfig['connection']['schema'] ?? null;
-//    $tablePrefix = $emConfig['connection']['table_prefix'] ?? null; // TODO
-
-    if ($schema === null) {
-        return $tableName;
-    }
-
-    return sprintf('%s.%s', $schema, $tableName);
+    static $uaParser = new UserAgentParser();
+    return $uaParser->parse($userAgent);
 }
 
 function fieldWithUtf8Charset(FieldBuilder $field, array $emConfig, string $collation = 'unicode_ci'): FieldBuilder
 {
     return match ($emConfig['connection']['driver'] ?? null) {
         'pdo_mysql' => $field->option('charset', 'utf8mb4')
-                             ->option('collation', 'utf8mb4_' . $collation),
+            ->option('collation', 'utf8mb4_' . $collation),
         default => $field,
     };
 }
 
-function camelCaseToHumanFriendly(string $value): string
-{
-    static $filter;
-    if ($filter === null) {
-        $filter = new CamelCaseToSeparator(' ');
-    }
-
-    return ucfirst($filter->filter($value));
-}
-
 function camelCaseToSnakeCase(string $value): string
 {
-    static $filter;
-    if ($filter === null) {
-        $filter = new CamelCaseToUnderscore();
-    }
-
-    return strtolower($filter->filter($value));
+    // Handle cases like "HTTPServerError" -> "http_server_error"
+    $value = preg_replace('/([A-Z])([A-Z][a-z])/u', '$1_$2', $value);
+    // Handle cases like "myVariable" -> "my_variable"
+    // @phpstan-ignore argument.type
+    $value = preg_replace('/([a-z0-9])([A-Z])/u', '$1_$2', $value);
+    // @phpstan-ignore argument.type
+    return mb_strtolower($value);
 }
 
 function toProblemDetailsType(string $errorCode): string
 {
     return sprintf('https://shlink.io/api/error/%s', $errorCode);
+}
+
+/**
+ * @param class-string<BackedEnum> $enum
+ * @return non-empty-list<string>
+ */
+function enumValues(string $enum): array
+{
+    return enumSide($enum, 'value');
+}
+
+/**
+ * @param class-string<BackedEnum> $enum
+ * @return non-empty-list<string>
+ */
+function enumNames(string $enum): array
+{
+    return enumSide($enum, 'name');
+}
+
+/**
+ * @param class-string<BackedEnum> $enum
+ * @param 'name'|'value' $type
+ * @return non-empty-list<string>
+ */
+function enumSide(string $enum, string $type): array
+{
+    static $cache;
+    if ($cache === null) {
+        $cache = [];
+    }
+
+    return (
+        $cache[$type][$enum] ?? ($cache[$type][$enum] = array_map(
+            static fn (BackedEnum $entry) => (string) ($type === 'name' ? $entry->name : $entry->value),
+            $enum::cases(),
+        ))
+    );
+}
+
+/**
+ * @param class-string<BackedEnum> $enum
+ */
+function enumToString(string $enum): string
+{
+    return sprintf('["%s"]', implode('", "', enumValues($enum)));
+}
+
+/**
+ * Split provided string by comma and return a list of the results.
+ * An empty array is returned if provided value is empty
+ */
+function splitByComma(string|null $value): array
+{
+    if ($value === null || trim($value) === '') {
+        return [];
+    }
+
+    return array_map(trim(...), explode(',', $value));
+}
+
+function ipAddressFromRequest(ServerRequestInterface $request): string|null
+{
+    return $request->getAttribute(IP_ADDRESS_REQUEST_ATTRIBUTE);
+}
+
+function geolocationFromRequest(ServerRequestInterface $request): Location|null
+{
+    $geolocation = $request->getAttribute(Location::class);
+    if ($geolocation !== null && !$geolocation instanceof Location) {
+        // TODO Throw exception
+    }
+
+    return $geolocation;
+}
+
+/**
+ * Generate a SHA256 hash of a string and then convert it to binary
+ */
+function stringToBinHash(string $value): string
+{
+    // @phpstan-ignore-next-line return.type
+    return hex2bin(hash('sha256', $value));
 }

@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\Exception;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Laminas\InputFilter\InputFilterInterface;
 use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Shlinkio\Shlink\Core\Exception\ValidationException;
@@ -17,11 +18,8 @@ use function print_r;
 
 class ValidationExceptionTest extends TestCase
 {
-    /**
-     * @test
-     * @dataProvider provideExceptions
-     */
-    public function createsExceptionFromInputFilter(?Throwable $prev): void
+    #[Test, DataProvider('provideExceptions')]
+    public function createsExceptionFromArray(Throwable|null $prev): void
     {
         $invalidData = [
             'foo' => 'bar',
@@ -29,16 +27,13 @@ class ValidationExceptionTest extends TestCase
         ];
         $barValue = print_r(['baz', 'foo'], true);
         $expectedStringRepresentation = <<<EOT
-            'foo' => bar
-            'something' => {$barValue}
-        EOT;
+                'foo' => bar
+                'something' => {$barValue}
+            EOT;
 
-        $inputFilter = $this->createMock(InputFilterInterface::class);
-        $inputFilter->expects($this->once())->method('getMessages')->with()->willReturn($invalidData);
+        $e = ValidationException::fromArray($invalidData, $prev);
 
-        $e = ValidationException::fromInputFilter($inputFilter, $prev);
-
-        self::assertEquals($invalidData, $e->getInvalidElements());
+        self::assertEquals($invalidData, $e->invalidElements);
         self::assertEquals(['invalidElements' => array_keys($invalidData)], $e->getAdditionalData());
         self::assertEquals('Provided data is not valid', $e->getMessage());
         self::assertEquals(StatusCodeInterface::STATUS_BAD_REQUEST, $e->getCode());
@@ -46,7 +41,7 @@ class ValidationExceptionTest extends TestCase
         self::assertStringContainsString($expectedStringRepresentation, (string) $e);
     }
 
-    public function provideExceptions(): iterable
+    public static function provideExceptions(): iterable
     {
         return [[null], [new RuntimeException()], [new LogicException()]];
     }

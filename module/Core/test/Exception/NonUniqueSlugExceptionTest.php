@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Core\Exception;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Core\Exception\NonUniqueSlugException;
 
 class NonUniqueSlugExceptionTest extends TestCase
 {
-    /**
-     * @test
-     * @dataProvider provideMessages
-     */
-    public function properlyCreatesExceptionFromSlug(string $expectedMessage, string $slug, ?string $domain): void
+    #[Test, DataProvider('provideMessages')]
+    public function properlyCreatesExceptionFromSlug(string $expectedMessage, string $slug, string|null $domain): void
     {
         $expectedAdditional = ['customSlug' => $slug];
         if ($domain !== null) {
@@ -30,7 +29,7 @@ class NonUniqueSlugExceptionTest extends TestCase
         self::assertEquals($expectedAdditional, $e->getAdditionalData());
     }
 
-    public function provideMessages(): iterable
+    public static function provideMessages(): iterable
     {
         yield 'without domain' => [
             'Provided slug "foo" is already in use.',

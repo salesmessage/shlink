@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\EventDispatcher\Kafka;
 
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -14,7 +18,7 @@ use Salesmessage\Streaming\Message\ProducerMessageInterface;
 use Salesmessage\Streaming\Producer\ProducerInterface;
 use Salesmessage\Streaming\Route\RouteInterface;
 use Shlinkio\Shlink\Common\UpdatePublishing\Update;
-use Shlinkio\Shlink\Core\EventDispatcher\Event\VisitLocated;
+use Shlinkio\Shlink\Core\EventDispatcher\Event\UrlVisited;
 use Shlinkio\Shlink\Core\EventDispatcher\Kafka\DeliveryFailures;
 use Shlinkio\Shlink\Core\EventDispatcher\Kafka\NotifyVisitToKafka;
 use Shlinkio\Shlink\Core\EventDispatcher\PublishingUpdatesGeneratorInterface;
@@ -27,14 +31,15 @@ use Throwable;
 use function sprintf;
 use function str_contains;
 
+#[AllowMockObjectsWithoutExpectations]
 class NotifyVisitToKafkaTest extends TestCase
 {
-    private MockObject & ProducerInterface $producer;
-    private MockObject & MessageFactoryInterface $messageFactory;
-    private MockObject & RouteInterface $topic;
-    private MockObject & PublishingUpdatesGeneratorInterface $updatesGenerator;
-    private MockObject & EntityManagerInterface $em;
-    private MockObject & LoggerInterface $logger;
+    private MockObject&ProducerInterface $producer;
+    private MockObject&MessageFactoryInterface $messageFactory;
+    private MockObject&RouteInterface $topic;
+    private MockObject&PublishingUpdatesGeneratorInterface $updatesGenerator;
+    private MockObject&EntityManagerInterface $em;
+    private MockObject&LoggerInterface $logger;
     private DeliveryFailures $deliveryFailures;
 
     protected function setUp(): void
@@ -48,10 +53,7 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->deliveryFailures = new DeliveryFailures();
     }
 
-    /**
-     * @test
-     * @group spec:click-tracking:AC-11
-     */
+    #[Test, Group('spec:click-tracking:AC-11')]
     public function locatedVisitIsPublishedOnceOnConfiguredTopicAndProducerIsFlushed(): void
     {
         $visit = $this->visit();
@@ -60,37 +62,53 @@ class NotifyVisitToKafkaTest extends TestCase
         $calls = [];
 
         $this->em->expects($this->once())->method('find')->with(Visit::class, '123')->willReturn($visit);
-        $this->updatesGenerator->expects($this->once())->method('newVisitUpdate')->with($visit)->willReturn(
-            Update::forTopicAndPayload('any', $payload),
-        );
-        $this->messageFactory->expects($this->once())->method('createProducerMessage')->with($payload)->willReturn(
-            $message,
-        );
-        $message->expects($this->once())->method('withHeader')->with(
-            'event-key',
-            'shortener.click_recorded',
-        )->willReturnSelf();
-        $this->producer->expects($this->once())->method('send')->with($this->topic, $message)->willReturnCallback(
-            function () use (&$calls): void {
-                $calls[] = 'send';
-            },
-        );
-        $this->producer->expects($this->once())->method('flush')->willReturnCallback(
-            function () use (&$calls): void {
-                $calls[] = 'flush';
-            },
-        );
+        $this->updatesGenerator
+            ->expects($this->once())
+            ->method('newVisitUpdate')
+            ->with($visit)
+            ->willReturn(
+                Update::forTopicAndPayload('any', $payload),
+            );
+        $this->messageFactory
+            ->expects($this->once())
+            ->method('createProducerMessage')
+            ->with($payload)
+            ->willReturn(
+                $message,
+            );
+        $message
+            ->expects($this->once())
+            ->method('withHeader')
+            ->with(
+                'event-key',
+                'shortener.click_recorded',
+            )
+            ->willReturnSelf();
+        $this->producer
+            ->expects($this->once())
+            ->method('send')
+            ->with($this->topic, $message)
+            ->willReturnCallback(
+                static function () use (&$calls): void {
+                    $calls[] = 'send';
+                },
+            );
+        $this->producer
+            ->expects($this->once())
+            ->method('flush')
+            ->willReturnCallback(
+                static function () use (&$calls): void {
+                    $calls[] = 'flush';
+                },
+            );
         $this->logger->expects($this->never())->method('error');
 
-        ($this->listener())(new VisitLocated('123'));
+        $this->listener()(new UrlVisited('123'));
 
         self::assertEquals(['send', 'flush'], $calls);
     }
 
-    /**
-     * @test
-     * @dataProvider provideFailingMethods
-     */
+    #[Test, DataProvider('provideFailingMethods')]
     public function producerFailureIsLoggedAtErrorLevelWithVisitIdAndShortCode(string $failingMethod): void
     {
         $e = new RuntimeException('Broker is unreachable');
@@ -103,24 +121,34 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->messageFactory->method('createProducerMessage')->willReturn($message);
         $this->producer->method($failingMethod)->willThrowException($e);
         $this->logger->expects($this->never())->method('debug');
-        $this->logger->expects($this->once())->method('error')->with(
-            $this->callback(static fn (string $message): bool =>
-                str_contains($message, '{visitId}') && str_contains($message, '{shortCode}')),
-            $this->callback(static fn (array $context): bool =>
-                $context['visitId'] === '123' && $context['shortCode'] === 'aB3xK' && $context['e'] instanceof
-                    Throwable),
-        );
+        $this->logger
+            ->expects($this->once())
+            ->method('error')
+            ->with(
+                $this->callback(
+                    static fn (string $message): bool => (
+                        str_contains($message, '{visitId}') && str_contains($message, '{shortCode}')
+                    ),
+                ),
+                $this->callback(
+                    static fn (array $context): bool => (
+                        $context['visitId'] === '123'
+                        && $context['shortCode'] === 'aB3xK'
+                        && $context['e'] instanceof Throwable
+                    ),
+                ),
+            );
 
-        ($this->listener())(new VisitLocated('123'));
+        $this->listener()(new UrlVisited('123'));
     }
 
-    public function provideFailingMethods(): iterable
+    public static function provideFailingMethods(): iterable
     {
         yield 'send fails' => ['send'];
         yield 'flush fails' => ['flush'];
     }
 
-    /** @test */
+    #[Test]
     public function nothingIsPublishedWhenPublisherIsDisabled(): void
     {
         $this->em->expects($this->never())->method('find');
@@ -131,10 +159,10 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->logger->expects($this->never())->method('error');
         $this->logger->expects($this->never())->method('warning');
 
-        ($this->listener(enabled: false))(new VisitLocated('123'));
+        $this->listener(enabled: false)(new UrlVisited('123'));
     }
 
-    /** @test */
+    #[Test]
     public function nothingIsPublishedWhenVisitCannotBeFound(): void
     {
         $this->em->expects($this->once())->method('find')->willReturn(null);
@@ -143,13 +171,13 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->logger->expects($this->once())->method('warning');
         $this->logger->expects($this->never())->method('error');
 
-        ($this->listener())(new VisitLocated('123'));
+        $this->listener()(new UrlVisited('123'));
     }
 
-    /** @test */
+    #[Test]
     public function orphanVisitsAreNotPublished(): void
     {
-        $orphanVisit = Visit::forBasePath(new Visitor('Chrome', '', '1.2.3.4', ''));
+        $orphanVisit = Visit::forBasePath(Visitor::fromParams(userAgent: 'Chrome', remoteAddress: '1.2.3.4'));
 
         $this->em->expects($this->once())->method('find')->willReturn($orphanVisit);
         $this->updatesGenerator->expects($this->never())->method('newVisitUpdate');
@@ -157,10 +185,10 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->producer->expects($this->never())->method('flush');
         $this->logger->expects($this->never())->method('error');
 
-        ($this->listener())(new VisitLocated('123'));
+        $this->listener()(new UrlVisited('123'));
     }
 
-    /** @test */
+    #[Test]
     public function deliveryFailureReportedWhilePublishingIsLoggedAtErrorLevelWithVisitIdAndShortCode(): void
     {
         $visit = $this->visit();
@@ -170,21 +198,33 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->em->method('find')->willReturn($visit);
         $this->updatesGenerator->method('newVisitUpdate')->willReturn(Update::forTopicAndPayload('any', []));
         $this->messageFactory->method('createProducerMessage')->willReturn($message);
-        $this->producer->method('flush')->willReturnCallback(function (): void {
-            $this->deliveryFailures->record(-192);
-        });
-        $this->logger->expects($this->once())->method('error')->with(
-            $this->callback(static fn (string $message): bool =>
-                str_contains($message, '{visitId}') && str_contains($message, '{shortCode}')),
-            $this->callback(static fn (array $context): bool =>
-                $context['visitId'] === '123' && $context['shortCode'] === 'aB3xK'
-                && $context['errorCodes'] === '-192'),
-        );
+        $this->producer
+            ->method('flush')
+            ->willReturnCallback(function (): void {
+                $this->deliveryFailures->record(-192);
+            });
+        $this->logger
+            ->expects($this->once())
+            ->method('error')
+            ->with(
+                $this->callback(
+                    static fn (string $message): bool => (
+                        str_contains($message, '{visitId}') && str_contains($message, '{shortCode}')
+                    ),
+                ),
+                $this->callback(
+                    static fn (array $context): bool => (
+                        $context['visitId'] === '123'
+                        && $context['shortCode'] === 'aB3xK'
+                        && $context['errorCodes'] === '-192'
+                    ),
+                ),
+            );
 
-        ($this->listener())(new VisitLocated('123'));
+        $this->listener()(new UrlVisited('123'));
     }
 
-    /** @test */
+    #[Test]
     public function deliveryFailuresFromAnEarlierPublishAreNotAttributedToThisVisit(): void
     {
         $message = $this->createMock(ProducerMessageInterface::class);
@@ -196,20 +236,19 @@ class NotifyVisitToKafkaTest extends TestCase
         $this->messageFactory->method('createProducerMessage')->willReturn($message);
         $this->logger->expects($this->never())->method('error');
 
-        ($this->listener())(new VisitLocated('123'));
+        $this->listener()(new UrlVisited('123'));
     }
 
     private function visit(): Visit
     {
-        $shortUrl = ShortUrl::create(ShortUrlCreation::fromRawData([
-            'customSlug' => 'aB3xK',
-            'longUrl' => 'https://example.com/spring-sale',
-        ]));
-        $visit = Visit::forValidShortUrl($shortUrl, new Visitor(
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) Mobile/15E148 Safari/604.1',
-            '',
-            '1.2.3.4',
-            sprintf('https://sh.example.com/%s?utm_sm_mid=90210', $shortUrl->getShortCode()),
+        $shortUrl = ShortUrl::create(new ShortUrlCreation(
+            longUrl: 'https://example.com/spring-sale',
+            customSlug: 'aB3xK',
+        ));
+        $visit = Visit::forValidShortUrl($shortUrl, Visitor::fromParams(
+            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) Mobile/15E148 Safari/604.1',
+            remoteAddress: '1.2.3.4',
+            visitedUrl: sprintf('https://sh.example.com/%s?utm_sm_mid=90210', $shortUrl->shortCode),
         ));
         $visit->setId('918273');
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Core\Crawling;
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Core\Crawling\CrawlingHelper;
@@ -12,7 +13,7 @@ use Shlinkio\Shlink\Core\ShortUrl\Repository\CrawlableShortCodesQueryInterface;
 class CrawlingHelperTest extends TestCase
 {
     private CrawlingHelper $helper;
-    private MockObject & CrawlableShortCodesQueryInterface $query;
+    private MockObject&CrawlableShortCodesQueryInterface $query;
 
     protected function setUp(): void
     {
@@ -20,7 +21,7 @@ class CrawlingHelperTest extends TestCase
         $this->helper = new CrawlingHelper($this->query);
     }
 
-    /** @test */
+    #[Test]
     public function listCrawlableShortCodesDelegatesIntoRepository(): void
     {
         $this->query->expects($this->once())->method('__invoke')->willReturn([]);

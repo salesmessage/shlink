@@ -4,50 +4,53 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\CLI\Command\Visit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Visit\DownloadGeoLiteDbCommand;
-use Shlinkio\Shlink\CLI\Exception\GeolocationDbUpdateFailedException;
-use Shlinkio\Shlink\CLI\GeoLite\GeolocationDbUpdaterInterface;
-use Shlinkio\Shlink\CLI\GeoLite\GeolocationResult;
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use Shlinkio\Shlink\Core\Exception\GeolocationDbUpdateFailedException;
+use Shlinkio\Shlink\Core\Geolocation\GeolocationDbUpdaterInterface;
+use Shlinkio\Shlink\Core\Geolocation\GeolocationDownloadProgressHandlerInterface;
+use Shlinkio\Shlink\Core\Geolocation\GeolocationResult;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function sprintf;
 
 class DownloadGeoLiteDbCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & GeolocationDbUpdaterInterface $dbUpdater;
+    private MockObject&GeolocationDbUpdaterInterface $dbUpdater;
 
     protected function setUp(): void
     {
         $this->dbUpdater = $this->createMock(GeolocationDbUpdaterInterface::class);
-        $this->commandTester = $this->testerForCommand(new DownloadGeoLiteDbCommand($this->dbUpdater));
+        $this->commandTester = CliTestUtils::testerForCommand(new DownloadGeoLiteDbCommand($this->dbUpdater));
     }
 
-    /**
-     * @test
-     * @dataProvider provideFailureParams
-     */
+    #[Test, DataProvider('provideFailureParams')]
     public function showsProperMessageWhenGeoLiteUpdateFails(
         bool $olderDbExists,
         string $expectedMessage,
         int $expectedExitCode,
     ): void {
-        $this->dbUpdater->expects($this->once())->method('checkDbUpdate')->withAnyParameters()->willReturnCallback(
-            function (callable $beforeDownload, callable $handleProgress) use ($olderDbExists): void {
-                $beforeDownload($olderDbExists);
-                $handleProgress(100, 50);
+        $this->dbUpdater
+            ->expects($this->once())
+            ->method('checkDbUpdate')
+            ->withAnyParameters()
+            ->willReturnCallback(
+                static function (GeolocationDownloadProgressHandlerInterface $handler) use ($olderDbExists): void {
+                    $handler->beforeDownload($olderDbExists);
+                    $handler->handleProgress(100, 50, $olderDbExists);
 
-                throw $olderDbExists
-                    ? GeolocationDbUpdateFailedException::withOlderDb()
-                    : GeolocationDbUpdateFailedException::withoutOlderDb();
-            },
-        );
+                    throw $olderDbExists
+                        ? GeolocationDbUpdateFailedException::withOlderDb()
+                        : GeolocationDbUpdateFailedException::withoutOlderDb();
+                },
+            );
 
         $this->commandTester->execute([]);
         $output = $this->commandTester->getDisplay();
@@ -61,44 +64,67 @@ class DownloadGeoLiteDbCommandTest extends TestCase
         self::assertSame($expectedExitCode, $exitCode);
     }
 
-    public function provideFailureParams(): iterable
+    public static function provideFailureParams(): iterable
     {
         yield 'existing db' => [
             true,
             '[WARNING] GeoLite2 db file update failed. Visits will continue to be located',
-            ExitCodes::EXIT_WARNING,
+            Command::INVALID,
         ];
         yield 'not existing db' => [
             false,
             '[ERROR] GeoLite2 db file download failed. It will not be possible to locate',
-            ExitCodes::EXIT_FAILURE,
+            Command::FAILURE,
         ];
     }
 
-    /**
-     * @test
-     * @dataProvider provideSuccessParams
-     */
+    #[Test]
+    #[TestWith([GeolocationResult::LICENSE_MISSING, 'It was not possible to download GeoLite2 db'])]
+    #[TestWith([GeolocationResult::MAX_ERRORS_REACHED, 'Max consecutive errors reached'])]
+    #[TestWith([GeolocationResult::UPDATE_IN_PROGRESS, 'A geolocation db is already being downloaded'])]
+    public function warningIsPrintedForSomeResults(GeolocationResult $result, string $expectedWarningMessage): void
+    {
+        $this->dbUpdater->expects($this->once())->method('checkDbUpdate')->withAnyParameters()->willReturn($result);
+
+        $this->commandTester->execute([]);
+        $output = $this->commandTester->getDisplay();
+        $exitCode = $this->commandTester->getStatusCode();
+
+        self::assertStringContainsString('[WARNING] ' . $expectedWarningMessage, $output);
+        self::assertSame(Command::INVALID, $exitCode);
+    }
+
+    #[Test, DataProvider('provideSuccessParams')]
     public function printsExpectedMessageWhenNoErrorOccurs(callable $checkUpdateBehavior, string $expectedMessage): void
     {
-        $this->dbUpdater->expects($this->once())->method('checkDbUpdate')->withAnyParameters()->willReturnCallback(
-            $checkUpdateBehavior,
-        );
+        $this->dbUpdater
+            ->expects($this->once())
+            ->method('checkDbUpdate')
+            ->withAnyParameters()
+            ->willReturnCallback(
+                $checkUpdateBehavior,
+            );
 
         $this->commandTester->execute([]);
         $output = $this->commandTester->getDisplay();
         $exitCode = $this->commandTester->getStatusCode();
 
         self::assertStringContainsString($expectedMessage, $output);
-        self::assertSame(ExitCodes::EXIT_SUCCESS, $exitCode);
+        self::assertSame(Command::SUCCESS, $exitCode);
     }
 
-    public function provideSuccessParams(): iterable
+    public static function provideSuccessParams(): iterable
     {
-        yield 'up to date db' => [fn () => GeolocationResult::CHECK_SKIPPED, '[INFO] GeoLite2 db file is up to date.'];
-        yield 'outdated db' => [function (callable $beforeDownload): GeolocationResult {
-            $beforeDownload(true);
-            return GeolocationResult::DB_CREATED;
-        }, '[OK] GeoLite2 db file properly downloaded.'];
+        yield 'up to date db' => [
+            static fn () => GeolocationResult::CHECK_SKIPPED,
+            '[INFO] GeoLite2 db file is up to date.',
+        ];
+        yield 'outdated db' => [
+            static function (GeolocationDownloadProgressHandlerInterface $handler): GeolocationResult {
+                $handler->beforeDownload(true);
+                return GeolocationResult::DB_CREATED;
+            },
+            '[OK] GeoLite2 db file properly downloaded.',
+        ];
     }
 }

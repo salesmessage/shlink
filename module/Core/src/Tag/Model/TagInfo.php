@@ -7,15 +7,15 @@ namespace Shlinkio\Shlink\Core\Tag\Model;
 use JsonSerializable;
 use Shlinkio\Shlink\Core\Visit\Model\VisitsSummary;
 
-final class TagInfo implements JsonSerializable
+final readonly class TagInfo implements JsonSerializable
 {
-    public readonly VisitsSummary $visitsSummary;
+    public VisitsSummary $visitsSummary;
 
     public function __construct(
-        public readonly string $tag,
-        public readonly int $shortUrlsCount,
+        public string $tag,
+        public int $shortUrlsCount,
         int $visitsCount,
-        ?int $nonBotVisitsCount = null,
+        int|null $nonBotVisitsCount = null,
     ) {
         $this->visitsSummary = VisitsSummary::fromTotalAndNonBots($visitsCount, $nonBotVisitsCount ?? $visitsCount);
     }
@@ -36,9 +36,6 @@ final class TagInfo implements JsonSerializable
             'tag' => $this->tag,
             'shortUrlsCount' => $this->shortUrlsCount,
             'visitsSummary' => $this->visitsSummary,
-
-            // Deprecated
-            'visitsCount' => $this->visitsSummary->total,
         ];
     }
 }

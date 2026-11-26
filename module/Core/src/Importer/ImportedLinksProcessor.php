@@ -6,35 +6,35 @@ namespace Shlinkio\Shlink\Core\Importer;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Shlinkio\Shlink\Core\Exception\NonUniqueSlugException;
+use Shlinkio\Shlink\Core\RedirectRule\ShortUrlRedirectRuleServiceInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortCodeUniquenessHelperInterface;
-use Shlinkio\Shlink\Core\ShortUrl\Repository\ShortUrlRepositoryInterface;
+use Shlinkio\Shlink\Core\ShortUrl\Repository\ShortUrlRepository;
 use Shlinkio\Shlink\Core\ShortUrl\Resolver\ShortUrlRelationResolverInterface;
 use Shlinkio\Shlink\Core\Util\DoctrineBatchHelperInterface;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
-use Shlinkio\Shlink\Core\Visit\Repository\VisitRepositoryInterface;
+use Shlinkio\Shlink\Core\Visit\Repository\VisitRepository;
 use Shlinkio\Shlink\Importer\ImportedLinksProcessorInterface;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkOrphanVisit;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkUrl;
 use Shlinkio\Shlink\Importer\Model\ImportResult;
 use Shlinkio\Shlink\Importer\Params\ImportParams;
-use Shlinkio\Shlink\Importer\Sources\ImportSource;
 use Symfony\Component\Console\Style\OutputStyle;
 use Symfony\Component\Console\Style\StyleInterface;
 use Throwable;
 
-use function Shlinkio\Shlink\Core\normalizeDate;
+use function Shlinkio\Shlink\Common\normalizeDate;
 use function sprintf;
 
-class ImportedLinksProcessor implements ImportedLinksProcessorInterface
+readonly class ImportedLinksProcessor implements ImportedLinksProcessorInterface
 {
     public function __construct(
-        private readonly EntityManagerInterface $em,
-        private readonly ShortUrlRelationResolverInterface $relationResolver,
-        private readonly ShortCodeUniquenessHelperInterface $shortCodeHelper,
-        private readonly DoctrineBatchHelperInterface $batchHelper,
-    ) {
-    }
+        private EntityManagerInterface $em,
+        private ShortUrlRelationResolverInterface $relationResolver,
+        private ShortCodeUniquenessHelperInterface $shortCodeHelper,
+        private DoctrineBatchHelperInterface $batchHelper,
+        private ShortUrlRedirectRuleServiceInterface $redirectRuleService,
+    ) {}
 
     public function process(StyleInterface $io, ImportResult $result, ImportParams $params): void
     {
@@ -55,16 +55,19 @@ class ImportedLinksProcessor implements ImportedLinksProcessorInterface
     private function importShortUrls(StyleInterface $io, iterable $shlinkUrls, ImportParams $params): void
     {
         $importShortCodes = $params->importShortCodes;
-        $source = $params->source;
-        $iterable = $this->batchHelper->wrapIterable($shlinkUrls, $source === ImportSource::SHLINK ? 10 : 100);
+        $iterable = $this->batchHelper->wrapIterable($shlinkUrls, $params->importVisits ? 10 : 100);
 
         foreach ($iterable as $importedUrl) {
-            $skipOnShortCodeConflict = static fn (): bool => $io->choice(sprintf(
-                'Failed to import URL "%s" because its short-code "%s" is already in use. Do you want to generate '
-                . 'a new one or skip it?',
-                $importedUrl->longUrl,
-                $importedUrl->shortCode,
-            ), ['Generate new short-code', 'Skip'], 1) === 'Skip';
+            $skipOnShortCodeConflict = static fn (): bool => $io->choice(
+                sprintf(
+                    'Failed to import URL "%s" because its short-code "%s" is already in use. Do you want to generate '
+                    . 'a new one or skip it?',
+                    $importedUrl->longUrl,
+                    $importedUrl->shortCode,
+                ),
+                ['Generate new short-code', 'Skip'],
+                1,
+            ) === 'Skip';
             $longUrl = $importedUrl->longUrl;
 
             try {
@@ -82,7 +85,11 @@ class ImportedLinksProcessor implements ImportedLinksProcessorInterface
                 continue;
             }
 
-            $resultMessage = $shortUrlImporting->importVisits($importedUrl->visits, $this->em);
+            $shortUrlImporting->importRedirectRules($importedUrl->redirectRules, $this->em, $this->redirectRuleService);
+            $resultMessage = $shortUrlImporting->importVisits(
+                $this->batchHelper->wrapIterable($importedUrl->visits, 100),
+                $this->em,
+            );
             $io->text(sprintf('%s: %s', $longUrl, $resultMessage));
         }
     }
@@ -92,7 +99,7 @@ class ImportedLinksProcessor implements ImportedLinksProcessorInterface
         bool $importShortCodes,
         callable $skipOnShortCodeConflict,
     ): ShortUrlImporting {
-        /** @var ShortUrlRepositoryInterface $shortUrlRepo */
+        /** @var ShortUrlRepository $shortUrlRepo */
         $shortUrlRepo = $this->em->getRepository(ShortUrl::class);
         $alreadyImportedShortUrl = $shortUrlRepo->findOneByImportedUrl($importedUrl);
         if ($alreadyImportedShortUrl !== null) {
@@ -100,7 +107,7 @@ class ImportedLinksProcessor implements ImportedLinksProcessorInterface
         }
 
         $shortUrl = ShortUrl::fromImport($importedUrl, $importShortCodes, $this->relationResolver);
-        if (! $this->handleShortCodeUniqueness($shortUrl, $importShortCodes, $skipOnShortCodeConflict)) {
+        if (!$this->handleShortCodeUniqueness($shortUrl, $importShortCodes, $skipOnShortCodeConflict)) {
             throw NonUniqueSlugException::fromImport($importedUrl);
         }
 
@@ -131,14 +138,14 @@ class ImportedLinksProcessor implements ImportedLinksProcessorInterface
     {
         $iterable = $this->batchHelper->wrapIterable($orphanVisits, 100);
 
-        /** @var VisitRepositoryInterface $visitRepo */
+        /** @var VisitRepository $visitRepo */
         $visitRepo = $this->em->getRepository(Visit::class);
         $mostRecentOrphanVisit = $visitRepo->findMostRecentOrphanVisit();
 
         $importedVisits = 0;
         foreach ($iterable as $importedOrphanVisit) {
             // Skip visits which are older than the most recent already imported visit's date
-            if ($mostRecentOrphanVisit?->getDate()->greaterThanOrEquals(normalizeDate($importedOrphanVisit->date))) {
+            if ($mostRecentOrphanVisit?->date->greaterThanOrEquals(normalizeDate($importedOrphanVisit->date))) {
                 continue;
             }
 

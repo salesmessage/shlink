@@ -8,9 +8,16 @@ use Doctrine\Persistence\ObjectRepository;
 use Happyr\DoctrineSpecification\Repository\EntitySpecificationRepositoryInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlIdentifier;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
+use Shlinkio\Shlink\Core\Visit\Persistence\OrphanVisitsCountFiltering;
+use Shlinkio\Shlink\Core\Visit\Persistence\OrphanVisitsListFiltering;
 use Shlinkio\Shlink\Core\Visit\Persistence\VisitsCountFiltering;
 use Shlinkio\Shlink\Core\Visit\Persistence\VisitsListFiltering;
+use Shlinkio\Shlink\Core\Visit\Persistence\WithDomainVisitsCountFiltering;
+use Shlinkio\Shlink\Core\Visit\Persistence\WithDomainVisitsListFiltering;
 
+/**
+ * @extends ObjectRepository<Visit>
+ */
 interface VisitRepositoryInterface extends ObjectRepository, EntitySpecificationRepositoryInterface
 {
     /**
@@ -23,9 +30,9 @@ interface VisitRepositoryInterface extends ObjectRepository, EntitySpecification
     /**
      * @return Visit[]
      */
-    public function findVisitsByTag(string $tag, VisitsListFiltering $filtering): array;
+    public function findVisitsByTag(string $tag, WithDomainVisitsListFiltering $filtering): array;
 
-    public function countVisitsByTag(string $tag, VisitsCountFiltering $filtering): int;
+    public function countVisitsByTag(string $tag, WithDomainVisitsCountFiltering $filtering): int;
 
     /**
      * @return Visit[]
@@ -37,16 +44,16 @@ interface VisitRepositoryInterface extends ObjectRepository, EntitySpecification
     /**
      * @return Visit[]
      */
-    public function findOrphanVisits(VisitsListFiltering $filtering): array;
+    public function findOrphanVisits(OrphanVisitsListFiltering $filtering): array;
 
-    public function countOrphanVisits(VisitsCountFiltering $filtering): int;
+    public function countOrphanVisits(OrphanVisitsCountFiltering $filtering): int;
 
     /**
      * @return Visit[]
      */
-    public function findNonOrphanVisits(VisitsListFiltering $filtering): array;
+    public function findNonOrphanVisits(WithDomainVisitsListFiltering $filtering): array;
 
-    public function countNonOrphanVisits(VisitsCountFiltering $filtering): int;
+    public function countNonOrphanVisits(WithDomainVisitsCountFiltering $filtering): int;
 
-    public function findMostRecentOrphanVisit(): ?Visit;
+    public function findMostRecentOrphanVisit(): Visit|null;
 }

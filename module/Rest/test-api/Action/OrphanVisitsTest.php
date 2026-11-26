@@ -1,0 +1,130 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ShlinkioApiTest\Shlink\Rest\Action;
+
+use GuzzleHttp\RequestOptions;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
+use Shlinkio\Shlink\Common\Paginator\Paginator;
+use Shlinkio\Shlink\Core\Visit\Model\OrphanVisitType;
+use Shlinkio\Shlink\TestUtils\ApiTest\ApiTestCase;
+
+use function array_map;
+
+class OrphanVisitsTest extends ApiTestCase
+{
+    private const array INVALID_SHORT_URL = [
+        'referer' => 'https://s.test/foo',
+        'date' => '2020-03-01T00:00:00+00:00',
+        'userAgent' => 'cf-facebook',
+        'visitLocation' => null,
+        'potentialBot' => true,
+        'visitedUrl' => 'https://example.com/short',
+        'type' => 'invalid_short_url',
+        'redirectUrl' => null,
+        'deviceType' => 'other',
+        'deviceTypeDetail' => 'unknown',
+    ];
+    private const array REGULAR_NOT_FOUND = [
+        'referer' => 'https://s.test/foo/bar',
+        'date' => '2020-02-01T00:00:00+00:00',
+        'userAgent' => 'shlink-tests-agent',
+        'visitLocation' => null,
+        'potentialBot' => false,
+        'visitedUrl' => 'https://s.test/bar',
+        'type' => 'regular_404',
+        'redirectUrl' => null,
+        'deviceType' => 'other',
+        'deviceTypeDetail' => 'unknown',
+    ];
+    private const array BASE_URL = [
+        'referer' => 'https://s.test',
+        'date' => '2020-01-01T00:00:00+00:00',
+        'userAgent' => 'shlink-tests-agent',
+        'visitLocation' => null,
+        'potentialBot' => false,
+        'visitedUrl' => 'https://s.test/foo',
+        'type' => 'base_url',
+        'redirectUrl' => null,
+        'deviceType' => 'other',
+        'deviceTypeDetail' => 'unknown',
+    ];
+
+    #[Test, DataProvider('provideQueries')]
+    public function properVisitsAreReturnedBasedInQuery(
+        array $query,
+        int $totalItems,
+        int $expectedAmount,
+        array $expectedVisits,
+    ): void {
+        $resp = $this->callApiWithKey(self::METHOD_GET, '/visits/orphan', [RequestOptions::QUERY => $query]);
+        $payload = $this->getJsonResponsePayload($resp);
+        /** @var list<array<string, mixed>> $visits */
+        $visits = $payload['visits']['data'] ?? [];
+
+        self::assertEquals($totalItems, $payload['visits']['pagination']['totalItems'] ?? Paginator::ALL_ITEMS);
+        self::assertCount($expectedAmount, $visits);
+        foreach ($visits as $visit) {
+            // Ids come from a sequence that is not reset between tests, so only their type is checked
+            self::assertIsInt($visit['id'] ?? null);
+            self::assertGreaterThan(0, $visit['id']);
+        }
+        self::assertEquals($expectedVisits, array_map(static function (array $visit): array {
+            unset($visit['id']);
+            return $visit;
+        }, $visits));
+    }
+
+    public static function provideQueries(): iterable
+    {
+        yield 'all data' => [[], 3, 3, [self::INVALID_SHORT_URL, self::REGULAR_NOT_FOUND, self::BASE_URL]];
+        yield 'limit items' => [['itemsPerPage' => 2], 3, 2, [self::INVALID_SHORT_URL, self::REGULAR_NOT_FOUND]];
+        yield 'limit items and page' => [['itemsPerPage' => 2, 'page' => 2], 3, 1, [self::BASE_URL]];
+        yield 'exclude bots' => [['excludeBots' => true], 2, 2, [self::REGULAR_NOT_FOUND, self::BASE_URL]];
+        yield 'exclude bots and limit items' => [
+            ['excludeBots' => true, 'itemsPerPage' => 1],
+            2,
+            1,
+            [self::REGULAR_NOT_FOUND],
+        ];
+        yield 'base_url only' => [['type' => OrphanVisitType::BASE_URL->value], 1, 1, [self::BASE_URL]];
+        yield 'regular_404 only' => [['type' => OrphanVisitType::REGULAR_404->value], 1, 1, [self::REGULAR_NOT_FOUND]];
+        yield 'invalid_short_url only' => [
+            ['type' => OrphanVisitType::INVALID_SHORT_URL->value],
+            1,
+            1,
+            [self::INVALID_SHORT_URL],
+        ];
+        yield 'example domain only' => [['domain' => 'example.com'], 1, 1, [self::INVALID_SHORT_URL]];
+        yield 'default domain only' => [['domain' => 's.test'], 2, 2, [self::REGULAR_NOT_FOUND, self::BASE_URL]];
+        yield 'default domain only with DEFAULT keyword' => [
+            ['domain' => 'DEFAULT'],
+            2,
+            2,
+            [self::REGULAR_NOT_FOUND, self::BASE_URL],
+        ];
+    }
+
+    #[Test]
+    public function errorIsReturnedForInvalidType(): void
+    {
+        $resp = $this->callApiWithKey(self::METHOD_GET, '/visits/orphan', [
+            RequestOptions::QUERY => ['type' => 'invalid'],
+        ]);
+        self::assertEquals(400, $resp->getStatusCode());
+    }
+
+    #[Test]
+    public function noVisitsAreReturnedForRestrictedApiKey(): void
+    {
+        $resp = $this->callApiWithKey(self::METHOD_GET, '/visits/orphan', apiKey: 'no_orphans_api_key');
+        $payload = $this->getJsonResponsePayload($resp);
+        $visits = $payload['visits']['data'] ?? null;
+
+        self::assertIsArray($visits);
+        self::assertEmpty($visits);
+        self::assertEquals(0, $payload['visits']['pagination']['totalItems'] ?? Paginator::ALL_ITEMS);
+    }
+}

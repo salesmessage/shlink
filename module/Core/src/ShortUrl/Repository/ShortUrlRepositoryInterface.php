@@ -10,19 +10,24 @@ use Happyr\DoctrineSpecification\Specification\Specification;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlIdentifier;
+use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlMode;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkUrl;
 
+/** @extends ObjectRepository<ShortUrl> */
 interface ShortUrlRepositoryInterface extends ObjectRepository, EntitySpecificationRepositoryInterface
 {
-    public function findOneWithDomainFallback(ShortUrlIdentifier $identifier): ?ShortUrl;
+    public function findOneWithDomainFallback(
+        ShortUrlIdentifier $identifier,
+        ShortUrlMode $shortUrlMode,
+    ): ShortUrl|null;
 
-    public function findOne(ShortUrlIdentifier $identifier, ?Specification $spec = null): ?ShortUrl;
+    public function findOne(ShortUrlIdentifier $identifier, Specification|null $spec = null): ShortUrl|null;
 
-    public function shortCodeIsInUse(ShortUrlIdentifier $identifier, ?Specification $spec = null): bool;
+    public function shortCodeIsInUse(ShortUrlIdentifier $identifier, Specification|null $spec = null): bool;
 
-    public function shortCodeIsInUseWithLock(ShortUrlIdentifier $identifier, ?Specification $spec = null): bool;
+    public function shortCodeIsInUseWithLock(ShortUrlIdentifier $identifier, Specification|null $spec = null): bool;
 
-    public function findOneMatching(ShortUrlCreation $meta): ?ShortUrl;
+    public function findOneMatching(ShortUrlCreation $creation): ShortUrl|null;
 
-    public function findOneByImportedUrl(ImportedShlinkUrl $url): ?ShortUrl;
+    public function findOneByImportedUrl(ImportedShlinkUrl $url): ShortUrl|null;
 }

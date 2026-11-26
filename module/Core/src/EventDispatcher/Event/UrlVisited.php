@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\EventDispatcher\Event;
 
-final class UrlVisited extends AbstractVisitEvent
+use JsonSerializable;
+use Shlinkio\Shlink\EventDispatcher\Util\JsonUnserializable;
+
+final readonly class UrlVisited implements JsonSerializable, JsonUnserializable
 {
-    private ?string $originalIpAddress = null;
+    public function __construct(
+        public string $visitId,
+        public string|null $originalIpAddress = null,
+    ) {}
 
-    public static function withOriginalIpAddress(string $visitId, ?string $originalIpAddress): self
+    public function jsonSerialize(): array
     {
-        $instance = new self($visitId);
-        $instance->originalIpAddress = $originalIpAddress;
-
-        return $instance;
+        return ['visitId' => $this->visitId, 'originalIpAddress' => $this->originalIpAddress];
     }
 
-    public function originalIpAddress(): ?string
+    public static function fromPayload(array $payload): self
     {
-        return $this->originalIpAddress;
+        return new self($payload['visitId'] ?? '', $payload['originalIpAddress'] ?? null);
     }
 }

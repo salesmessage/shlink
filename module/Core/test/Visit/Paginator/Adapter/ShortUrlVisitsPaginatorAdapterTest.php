@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Core\Visit\Paginator\Adapter;
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Common\Util\DateRange;
@@ -17,47 +18,55 @@ use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
 class ShortUrlVisitsPaginatorAdapterTest extends TestCase
 {
-    private MockObject & VisitRepositoryInterface $repo;
+    private MockObject&VisitRepositoryInterface $repo;
 
     protected function setUp(): void
     {
         $this->repo = $this->createMock(VisitRepositoryInterface::class);
     }
 
-    /** @test */
+    #[Test]
     public function repoIsCalledEveryTimeItemsAreFetched(): void
     {
         $count = 3;
         $limit = 1;
         $offset = 5;
         $adapter = $this->createAdapter(null);
-        $this->repo->expects($this->exactly($count))->method('findVisitsByShortCode')->with(
-            ShortUrlIdentifier::fromShortCodeAndDomain(''),
-            new VisitsListFiltering(DateRange::allTime(), false, null, $limit, $offset),
-        )->willReturn([]);
+        $this->repo
+            ->expects($this->exactly($count))
+            ->method('findVisitsByShortCode')
+            ->with(
+                ShortUrlIdentifier::fromShortCodeAndDomain(''),
+                new VisitsListFiltering(DateRange::allTime(), false, null, $limit, $offset),
+            )
+            ->willReturn([]);
 
         for ($i = 0; $i < $count; $i++) {
             $adapter->getSlice($offset, $limit);
         }
     }
 
-    /** @test */
+    #[Test]
     public function repoIsCalledOnlyOnceForCount(): void
     {
         $count = 3;
         $apiKey = ApiKey::create();
         $adapter = $this->createAdapter($apiKey);
-        $this->repo->expects($this->once())->method('countVisitsByShortCode')->with(
-            ShortUrlIdentifier::fromShortCodeAndDomain(''),
-            new VisitsCountFiltering(DateRange::allTime(), false, $apiKey),
-        )->willReturn(3);
+        $this->repo
+            ->expects($this->once())
+            ->method('countVisitsByShortCode')
+            ->with(
+                ShortUrlIdentifier::fromShortCodeAndDomain(''),
+                new VisitsCountFiltering(DateRange::allTime(), false, $apiKey),
+            )
+            ->willReturn(3);
 
         for ($i = 0; $i < $count; $i++) {
             $adapter->getNbResults();
         }
     }
 
-    private function createAdapter(?ApiKey $apiKey): ShortUrlVisitsPaginatorAdapter
+    private function createAdapter(ApiKey|null $apiKey): ShortUrlVisitsPaginatorAdapter
     {
         return new ShortUrlVisitsPaginatorAdapter(
             $this->repo,

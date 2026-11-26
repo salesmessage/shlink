@@ -12,18 +12,23 @@ use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
 class ShortUrlsListFiltering extends ShortUrlsCountFiltering
 {
+    /** @inheritDoc */
     public function __construct(
-        public readonly ?int $limit,
-        public readonly ?int $offset,
-        public readonly Ordering $orderBy,
-        ?string $searchTerm = null,
+        public readonly int|null $limit = null,
+        public readonly int|null $offset = null,
+        public readonly Ordering $orderBy = new Ordering(),
+        string|null $searchTerm = null,
         array $tags = [],
-        ?TagsMode $tagsMode = null,
-        ?DateRange $dateRange = null,
+        TagsMode $tagsMode = TagsMode::ANY,
+        DateRange|null $dateRange = null,
         bool $excludeMaxVisitsReached = false,
         bool $excludePastValidUntil = false,
-        ?ApiKey $apiKey = null,
-        ?string $defaultDomain = null,
+        ApiKey|null $apiKey = null,
+        string|null $defaultDomain = null,
+        string|null $domain = null,
+        array $excludeTags = [],
+        TagsMode $excludeTagsMode = TagsMode::ANY,
+        string|null $apiKeyName = null,
     ) {
         parent::__construct(
             $searchTerm,
@@ -34,6 +39,10 @@ class ShortUrlsListFiltering extends ShortUrlsCountFiltering
             $excludePastValidUntil,
             $apiKey,
             $defaultDomain,
+            $domain,
+            $excludeTags,
+            $excludeTagsMode,
+            $apiKeyName,
         );
     }
 
@@ -41,7 +50,7 @@ class ShortUrlsListFiltering extends ShortUrlsCountFiltering
         int $limit,
         int $offset,
         ShortUrlsParams $params,
-        ?ApiKey $apiKey,
+        ApiKey|null $apiKey,
         string $defaultDomain,
     ): self {
         return new self(
@@ -56,6 +65,10 @@ class ShortUrlsListFiltering extends ShortUrlsCountFiltering
             $params->excludePastValidUntil,
             $apiKey,
             $defaultDomain,
+            $params->domain,
+            $params->excludeTags,
+            $params->excludeTagsMode,
+            $params->apiKeyName,
         );
     }
 }

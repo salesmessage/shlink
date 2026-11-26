@@ -4,36 +4,37 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\CLI\Command\Tag;
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Tag\DeleteTagsCommand;
 use Shlinkio\Shlink\Core\Tag\TagServiceInterface;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class DeleteTagsCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & TagServiceInterface $tagService;
+    private MockObject&TagServiceInterface $tagService;
 
     protected function setUp(): void
     {
         $this->tagService = $this->createMock(TagServiceInterface::class);
-        $this->commandTester = $this->testerForCommand(new DeleteTagsCommand($this->tagService));
+        $this->commandTester = CliTestUtils::testerForCommand(new DeleteTagsCommand($this->tagService));
     }
 
-    /** @test */
+    #[Test]
     public function errorIsReturnedWhenNoTagsAreProvided(): void
     {
+        $this->tagService->expects($this->never())->method('deleteTags');
+
         $this->commandTester->execute([]);
 
         $output = $this->commandTester->getDisplay();
         self::assertStringContainsString('You have to provide at least one tag name', $output);
     }
 
-    /** @test */
+    #[Test]
     public function serviceIsInvokedOnSuccess(): void
     {
         $tagNames = ['foo', 'bar'];

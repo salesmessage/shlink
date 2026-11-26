@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\Model;
 
-final class Ordering
-{
-    private const DEFAULT_DIR = 'ASC';
+use function Shlinkio\Shlink\Common\parseOrderBy;
 
-    private function __construct(public readonly ?string $field, public readonly string $direction)
+final readonly class Ordering
+{
+    private const string DESC_DIR = 'DESC';
+    private const string ASC_DIR = 'ASC';
+    public const array VALID_ORDER_DIRS = [self::ASC_DIR, self::DESC_DIR];
+    private const string DEFAULT_DIR = self::ASC_DIR;
+
+    public function __construct(public string|null $field = null, public string $direction = self::DEFAULT_DIR) {}
+
+    public static function none(): self
     {
+        return new self();
     }
 
     /**
@@ -21,13 +29,18 @@ final class Ordering
         return new self($field, $dir ?? self::DEFAULT_DIR);
     }
 
-    public static function emptyInstance(): self
+    public static function fromOptionalString(string|null $value): self
     {
-        return self::fromTuple([null, null]);
+        return $value === null ? self::none() : self::fromTuple(parseOrderBy($value));
     }
 
-    public function hasOrderField(): bool
+    public static function fromFieldAsc(string $field): self
     {
-        return $this->field !== null;
+        return new self($field, self::ASC_DIR);
+    }
+
+    public static function fromFieldDesc(string $field): self
+    {
+        return new self($field, self::DESC_DIR);
     }
 }

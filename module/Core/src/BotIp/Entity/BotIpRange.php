@@ -8,15 +8,17 @@ use Cake\Chronos\Chronos;
 use Shlinkio\Shlink\Common\Entity\AbstractEntity;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 
+/**
+ * A CIDR range a source publishes for its bots. Visits from it are tracked as potential bots.
+ */
 class BotIpRange extends AbstractEntity
 {
     private function __construct(
-        private string $ip,
-        private string $source,
-        private Chronos $createdAt,
+        private readonly string $ip,
+        private readonly string $source,
+        private readonly Chronos $createdAt,
         private Chronos $updatedAt,
-    ) {
-    }
+    ) {}
 
     public static function seenNow(string $ip, BotIpSource $source, Chronos $now): self
     {
@@ -38,13 +40,13 @@ class BotIpRange extends AbstractEntity
         return $this->source;
     }
 
-    public function updatedAt(): Chronos
-    {
-        return $this->updatedAt;
-    }
-
     public function createdAt(): Chronos
     {
         return $this->createdAt;
+    }
+
+    public function updatedAt(): Chronos
+    {
+        return $this->updatedAt;
     }
 }

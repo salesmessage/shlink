@@ -8,262 +8,206 @@ use Cake\Chronos\Chronos;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
+use Doctrine\Common\Collections\Order;
 use Doctrine\Common\Collections\Selectable;
 use Shlinkio\Shlink\Common\Entity\AbstractEntity;
 use Shlinkio\Shlink\Core\Domain\Entity\Domain;
 use Shlinkio\Shlink\Core\Exception\ShortCodeCannotBeRegeneratedException;
+use Shlinkio\Shlink\Core\RedirectRule\Entity\ShortUrlRedirectRule;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlEdition;
-use Shlinkio\Shlink\Core\ShortUrl\Model\Validation\ShortUrlInputFilter;
+use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlMode;
 use Shlinkio\Shlink\Core\ShortUrl\Resolver\ShortUrlRelationResolverInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Resolver\SimpleShortUrlRelationResolver;
 use Shlinkio\Shlink\Core\Tag\Entity\Tag;
+use Shlinkio\Shlink\Core\Visit\Entity\ShortUrlVisitsCount;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
+use Shlinkio\Shlink\Core\Visit\Model\VisitsSummary;
 use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkUrl;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
+use function array_map;
 use function count;
+use function Shlinkio\Shlink\Common\normalizeDate;
 use function Shlinkio\Shlink\Core\generateRandomShortCode;
-use function Shlinkio\Shlink\Core\normalizeDate;
-use function Shlinkio\Shlink\Core\normalizeOptionalDate;
+use function Shlinkio\Shlink\Core\stringToBinHash;
+use function sprintf;
 
 class ShortUrl extends AbstractEntity
 {
-    private string $longUrl;
-    private string $shortCode;
-    private Chronos $dateCreated;
-    /** @var Collection<int, Visit> */
-    private Collection $visits;
-    /** @var Collection<int, Tag> */
-    private Collection $tags;
-    private ?Chronos $validSince = null;
-    private ?Chronos $validUntil = null;
-    private ?int $maxVisits = null;
-    private ?Domain $domain = null;
-    private bool $customSlugWasProvided;
-    private int $shortCodeLength;
-    private ?string $importSource = null;
-    private ?string $importOriginalShortCode = null;
-    private ?ApiKey $authorApiKey = null;
-    private ?string $title = null;
-    private bool $titleWasAutoResolved = false;
-    private bool $crawlable = false;
-    private bool $forwardQuery = true;
+    private(set) string $longUrlHash;
 
-    private function __construct()
+    /**
+     * @param Collection<int, Tag> $tags
+     * @param Collection<int, Visit>&Selectable<int, Visit> $visits
+     * @param Collection<int, ShortUrlVisitsCount>&Selectable<int, ShortUrlVisitsCount> $visitsCounts
+     * @param Collection<int, ShortUrlRedirectRule> $redirectRules
+     */
+    private function __construct(
+        private(set) string $longUrl {
+            get => $this->longUrl;
+            set(string $value) {
+                $this->longUrl = $value;
+                $this->longUrlHash = stringToBinHash($value);
+            }
+        },
+        private(set) string $shortCode,
+        private(set) Chronos $dateCreated = new Chronos(),
+        private(set) Collection $tags = new ArrayCollection(),
+        private Collection&Selectable $visits = new ArrayCollection(),
+        private Collection&Selectable $visitsCounts = new ArrayCollection(),
+        private(set) Chronos|null $validSince = null,
+        private(set) Chronos|null $validUntil = null,
+        private(set) int|null $maxVisits = null,
+        private(set) Domain|null $domain = null,
+        private bool $customSlugWasProvided = false,
+        private int $shortCodeLength = 0,
+        public readonly ApiKey|null $authorApiKey = null,
+        private(set) string|null $title = null,
+        private bool $titleWasAutoResolved = false,
+        private(set) bool $crawlable = false,
+        private(set) bool $forwardQuery = true,
+        private string|null $importSource = null,
+        private string|null $importOriginalShortCode = null,
+        private Collection $redirectRules = new ArrayCollection(),
+    ) {}
+
+    /**
+     * @internal
+     */
+    public static function createFake(): self
     {
+        return self::withLongUrl('https://foo');
     }
 
-    public static function createEmpty(): self
-    {
-        return self::create(ShortUrlCreation::createEmpty());
-    }
-
+    /**
+     * @param non-empty-string $longUrl
+     */
     public static function withLongUrl(string $longUrl): self
     {
-        return self::create(ShortUrlCreation::fromRawData([ShortUrlInputFilter::LONG_URL => $longUrl]));
+        return self::create(new ShortUrlCreation(longUrl: $longUrl));
     }
 
     public static function create(
         ShortUrlCreation $creation,
-        ?ShortUrlRelationResolverInterface $relationResolver = null,
+        ShortUrlRelationResolverInterface|null $relationResolver = null,
     ): self {
-        $instance = new self();
-        $relationResolver = $relationResolver ?? new SimpleShortUrlRelationResolver();
+        $relationResolver ??= new SimpleShortUrlRelationResolver();
+        $shortCodeLength = $creation->shortCodeLength;
 
-        $instance->longUrl = $creation->getLongUrl();
-        $instance->dateCreated = Chronos::now();
-        $instance->visits = new ArrayCollection();
-        $instance->tags = $relationResolver->resolveTags($creation->getTags());
-        $instance->validSince = $creation->getValidSince();
-        $instance->validUntil = $creation->getValidUntil();
-        $instance->maxVisits = $creation->getMaxVisits();
-        $instance->customSlugWasProvided = $creation->hasCustomSlug();
-        $instance->shortCodeLength = $creation->getShortCodeLength();
-        $instance->shortCode = $creation->getCustomSlug() ?? generateRandomShortCode($instance->shortCodeLength);
-        $instance->domain = $relationResolver->resolveDomain($creation->getDomain());
-        $instance->authorApiKey = $creation->getApiKey();
-        $instance->title = $creation->getTitle();
-        $instance->titleWasAutoResolved = $creation->titleWasAutoResolved();
-        $instance->crawlable = $creation->isCrawlable();
-        $instance->forwardQuery = $creation->forwardQuery();
-
-        return $instance;
+        return new self(
+            longUrl: $creation->longUrl,
+            shortCode: sprintf(
+                '%s%s',
+                $creation->pathPrefix ?? '',
+                $creation->customSlug ?? generateRandomShortCode($shortCodeLength, $creation->shortUrlMode),
+            ),
+            tags: $relationResolver->resolveTags($creation->tags),
+            validSince: $creation->validSince,
+            validUntil: $creation->validUntil,
+            maxVisits: $creation->maxVisits,
+            domain: $relationResolver->resolveDomain($creation->domain),
+            customSlugWasProvided: $creation->hasCustomSlug(),
+            shortCodeLength: $shortCodeLength,
+            authorApiKey: $creation->apiKey,
+            title: $creation->title,
+            titleWasAutoResolved: $creation->titleWasAutoResolved,
+            crawlable: $creation->crawlable,
+            forwardQuery: $creation->forwardQuery,
+        );
     }
 
     public static function fromImport(
         ImportedShlinkUrl $url,
         bool $importShortCode,
-        ?ShortUrlRelationResolverInterface $relationResolver = null,
+        ShortUrlRelationResolverInterface|null $relationResolver = null,
     ): self {
-        $meta = [
-            ShortUrlInputFilter::VALIDATE_URL => false,
-            ShortUrlInputFilter::LONG_URL => $url->longUrl,
-            ShortUrlInputFilter::DOMAIN => $url->domain,
-            ShortUrlInputFilter::TAGS => $url->tags,
-            ShortUrlInputFilter::TITLE => $url->title,
-            ShortUrlInputFilter::MAX_VISITS => $url->meta->maxVisits,
-        ];
-        if ($importShortCode) {
-            $meta[ShortUrlInputFilter::CUSTOM_SLUG] = $url->shortCode;
-        }
+        $instance = self::create(new ShortUrlCreation(
+            longUrl: $url->longUrl,
+            validSince: $url->meta->validSince,
+            validUntil: $url->meta->validUntil,
+            customSlug: $importShortCode ? $url->shortCode : null,
+            maxVisits: $url->meta->maxVisits,
+            domain: $url->domain,
+            tags: $url->tags,
+            title: $url->title,
+        ), $relationResolver);
 
-        $instance = self::create(ShortUrlCreation::fromRawData($meta), $relationResolver);
-
+        $instance->dateCreated = normalizeDate($url->createdAt);
         $instance->importSource = $url->source->value;
         $instance->importOriginalShortCode = $url->shortCode;
-        $instance->validSince = normalizeOptionalDate($url->meta->validSince);
-        $instance->validUntil = normalizeOptionalDate($url->meta->validUntil);
-        $instance->dateCreated = normalizeDate($url->createdAt);
 
         return $instance;
     }
 
-    public function getLongUrl(): string
-    {
-        return $this->longUrl;
+    public function update(
+        ShortUrlEdition $shortUrlEdit,
+        ShortUrlRelationResolverInterface|null $relationResolver = null,
+    ): void {
+        if ($shortUrlEdit->validSinceWasProvided) {
+            $this->validSince = $shortUrlEdit->validSince;
+        }
+        if ($shortUrlEdit->validUntilWasProvided) {
+            $this->validUntil = $shortUrlEdit->validUntil;
+        }
+        if ($shortUrlEdit->maxVisitsWasProvided) {
+            $this->maxVisits = $shortUrlEdit->maxVisits;
+        }
+        if ($shortUrlEdit->longUrl !== null) {
+            $this->longUrl = $shortUrlEdit->longUrl;
+        }
+        if ($shortUrlEdit->tags !== null) {
+            $relationResolver ??= new SimpleShortUrlRelationResolver();
+            $this->tags = $relationResolver->resolveTags($shortUrlEdit->tags);
+        }
+        if ($shortUrlEdit->crawlable !== null) {
+            $this->crawlable = $shortUrlEdit->crawlable;
+        }
+        if (
+            $this->title === null
+            || $shortUrlEdit->titleWasProvided
+            || ($this->titleWasAutoResolved
+            && $shortUrlEdit->titleWasAutoResolved)
+        ) {
+            $this->title = $shortUrlEdit->title;
+            $this->titleWasAutoResolved = $shortUrlEdit->titleWasAutoResolved;
+        }
+        if ($shortUrlEdit->forwardQuery !== null) {
+            $this->forwardQuery = $shortUrlEdit->forwardQuery;
+        }
     }
 
-    public function getShortCode(): string
+    public function reachedVisits(int $visitsAmount): bool
     {
-        return $this->shortCode;
+        return count($this->visits) >= $visitsAmount;
     }
 
-    public function getDateCreated(): Chronos
+    public function mostRecentImportedVisitDate(): Chronos|null
     {
-        return $this->dateCreated;
-    }
+        $criteria = Criteria::create()
+            ->where(Criteria::expr()->eq('type', VisitType::IMPORTED))
+            ->orderBy(['id' => Order::Descending])
+            ->setMaxResults(1);
+        $visit = $this->visits->matching($criteria)->last();
 
-    public function getDomain(): ?Domain
-    {
-        return $this->domain;
-    }
-
-    /**
-     * @return Collection<int, Tag>
-     */
-    public function getTags(): Collection
-    {
-        return $this->tags;
-    }
-
-    public function authorApiKey(): ?ApiKey
-    {
-        return $this->authorApiKey;
-    }
-
-    public function getValidSince(): ?Chronos
-    {
-        return $this->validSince;
-    }
-
-    public function getValidUntil(): ?Chronos
-    {
-        return $this->validUntil;
-    }
-
-    public function getVisitsCount(): int
-    {
-        return count($this->visits);
-    }
-
-    public function nonBotVisitsCount(): int
-    {
-        $criteria = Criteria::create()->where(Criteria::expr()->eq('potentialBot', false));
-        return count($this->visits->matching($criteria));
-    }
-
-    public function mostRecentImportedVisitDate(): ?Chronos
-    {
-        /** @var Selectable $visits */
-        $visits = $this->visits;
-        $criteria = Criteria::create()->where(Criteria::expr()->eq('type', VisitType::IMPORTED))
-                                      ->orderBy(['id' => 'DESC'])
-                                      ->setMaxResults(1);
-
-        /** @var Visit|false $visit */
-        $visit = $visits->matching($criteria)->last();
-
-        return $visit === false ? null : $visit->getDate();
+        return $visit instanceof Visit ? $visit->date : null;
     }
 
     /**
-     * @param Collection<int, Visit> $visits
+     * @param Collection<int, Visit> & Selectable<int, Visit> $visits
      * @internal
      */
-    public function setVisits(Collection $visits): self
+    public function setVisits(Collection&Selectable $visits): self
     {
         $this->visits = $visits;
         return $this;
     }
 
-    public function setTags(Collection $tags): self
-    {
-        $this->tags = $tags;
-        return $this;
-    }
-
-    public function getMaxVisits(): ?int
-    {
-        return $this->maxVisits;
-    }
-
-    public function title(): ?string
-    {
-        return $this->title;
-    }
-
-    public function crawlable(): bool
-    {
-        return $this->crawlable;
-    }
-
-    public function forwardQuery(): bool
-    {
-        return $this->forwardQuery;
-    }
-
-    public function update(
-        ShortUrlEdition $shortUrlEdit,
-        ?ShortUrlRelationResolverInterface $relationResolver = null,
-    ): void {
-        if ($shortUrlEdit->validSinceWasProvided()) {
-            $this->validSince = $shortUrlEdit->validSince();
-        }
-        if ($shortUrlEdit->validUntilWasProvided()) {
-            $this->validUntil = $shortUrlEdit->validUntil();
-        }
-        if ($shortUrlEdit->maxVisitsWasProvided()) {
-            $this->maxVisits = $shortUrlEdit->maxVisits();
-        }
-        if ($shortUrlEdit->longUrlWasProvided()) {
-            $this->longUrl = $shortUrlEdit->longUrl() ?? $this->longUrl;
-        }
-        if ($shortUrlEdit->tagsWereProvided()) {
-            $relationResolver = $relationResolver ?? new SimpleShortUrlRelationResolver();
-            $this->tags = $relationResolver->resolveTags($shortUrlEdit->tags());
-        }
-        if ($shortUrlEdit->crawlableWasProvided()) {
-            $this->crawlable = $shortUrlEdit->crawlable();
-        }
-        if (
-            $this->title === null
-            || $shortUrlEdit->titleWasProvided()
-            || ($this->titleWasAutoResolved && $shortUrlEdit->titleWasAutoResolved())
-        ) {
-            $this->title = $shortUrlEdit->title();
-            $this->titleWasAutoResolved = $shortUrlEdit->titleWasAutoResolved();
-        }
-        if ($shortUrlEdit->forwardQueryWasProvided()) {
-            $this->forwardQuery = $shortUrlEdit->forwardQuery();
-        }
-    }
-
     /**
      * @throws ShortCodeCannotBeRegeneratedException
      */
-    public function regenerateShortCode(): void
+    public function regenerateShortCode(ShortUrlMode $mode): void
     {
         // In ShortUrls where a custom slug was provided, throw error, unless it is an imported one
         if ($this->customSlugWasProvided && $this->importSource === null) {
@@ -275,12 +219,12 @@ class ShortUrl extends AbstractEntity
             throw ShortCodeCannotBeRegeneratedException::forShortUrlAlreadyPersisted();
         }
 
-        $this->shortCode = generateRandomShortCode($this->shortCodeLength);
+        $this->shortCode = generateRandomShortCode($this->shortCodeLength, $mode);
     }
 
     public function isEnabled(): bool
     {
-        $maxVisitsReached = $this->maxVisits !== null && $this->getVisitsCount() >= $this->maxVisits;
+        $maxVisitsReached = $this->maxVisits !== null && $this->reachedVisits($this->maxVisits);
         if ($maxVisitsReached) {
             return false;
         }
@@ -297,5 +241,37 @@ class ShortUrl extends AbstractEntity
         }
 
         return true;
+    }
+
+    /**
+     * @param null|(callable(): ?string) $getAuthority -
+     *  This is a callback so that we trust its return value if provided, even if it is null.
+     *  Providing the raw authority as `string|null` would result in a fallback to `$this->domain` when the authority
+     *  was null.
+     */
+    public function toArray(VisitsSummary|null $precalculatedSummary = null, callable|null $getAuthority = null): array
+    {
+        return [
+            'shortCode' => $this->shortCode,
+            'longUrl' => $this->longUrl,
+            'dateCreated' => $this->dateCreated->toAtomString(),
+            'tags' => array_map(static fn (Tag $tag) => $tag->__toString(), $this->tags->toArray()),
+            'meta' => [
+                'validSince' => $this->validSince?->toAtomString(),
+                'validUntil' => $this->validUntil?->toAtomString(),
+                'maxVisits' => $this->maxVisits,
+            ],
+            'domain' => $getAuthority !== null ? $getAuthority() : $this->domain?->authority,
+            'title' => $this->title,
+            'crawlable' => $this->crawlable,
+            'forwardQuery' => $this->forwardQuery,
+            'visitsSummary' => $precalculatedSummary ?? VisitsSummary::fromTotalAndNonBots(
+                count($this->visits),
+                count($this->visits->matching(
+                    Criteria::create()->where(Criteria::expr()->eq('potentialBot', false)),
+                )),
+            ),
+            'hasRedirectRules' => count($this->redirectRules) > 0,
+        ];
     }
 }

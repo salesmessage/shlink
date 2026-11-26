@@ -7,6 +7,7 @@ namespace ShlinkioTest\Shlink\Rest\Middleware\Mercure;
 use Laminas\Diactoros\Response;
 use Laminas\Diactoros\ServerRequestFactory;
 use Mezzio\ProblemDetails\ProblemDetailsResponseFactory;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -17,9 +18,9 @@ use Shlinkio\Shlink\Rest\Middleware\Mercure\NotConfiguredMercureErrorHandler;
 class NotConfiguredMercureErrorHandlerTest extends TestCase
 {
     private NotConfiguredMercureErrorHandler $middleware;
-    private MockObject & ProblemDetailsResponseFactory $respFactory;
-    private MockObject & LoggerInterface $logger;
-    private MockObject & RequestHandlerInterface $handler;
+    private MockObject&ProblemDetailsResponseFactory $respFactory;
+    private MockObject&LoggerInterface $logger;
+    private MockObject&RequestHandlerInterface $handler;
 
     protected function setUp(): void
     {
@@ -29,7 +30,7 @@ class NotConfiguredMercureErrorHandlerTest extends TestCase
         $this->handler = $this->createMock(RequestHandlerInterface::class);
     }
 
-    /** @test */
+    #[Test]
     public function requestHandlerIsInvokedWhenNotErrorOccurs(): void
     {
         $req = ServerRequestFactory::fromGlobals();
@@ -40,13 +41,17 @@ class NotConfiguredMercureErrorHandlerTest extends TestCase
         $this->middleware->process($req, $this->handler);
     }
 
-    /** @test */
+    #[Test]
     public function exceptionIsParsedToResponse(): void
     {
         $req = ServerRequestFactory::fromGlobals();
-        $this->handler->expects($this->once())->method('handle')->with($req)->willThrowException(
-            MercureException::mercureNotConfigured(),
-        );
+        $this->handler
+            ->expects($this->once())
+            ->method('handle')
+            ->with($req)
+            ->willThrowException(
+                MercureException::mercureNotConfigured(),
+            );
         $this->respFactory->expects($this->once())->method('createResponseFromThrowable')->willReturn(new Response());
         $this->logger->expects($this->once())->method('warning');
 

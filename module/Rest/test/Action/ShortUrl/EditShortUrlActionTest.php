@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Rest\Action\ShortUrl;
 
-use Laminas\Diactoros\ServerRequest;
+use CuyZ\Valinor\MapperBuilder;
+use Laminas\Diactoros\ServerRequestFactory;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Shlinkio\Shlink\Core\Exception\ValidationException;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifier;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlServiceInterface;
@@ -18,38 +19,26 @@ use Shlinkio\Shlink\Rest\Entity\ApiKey;
 class EditShortUrlActionTest extends TestCase
 {
     private EditShortUrlAction $action;
-    private MockObject & ShortUrlServiceInterface $shortUrlService;
+    private MockObject&ShortUrlServiceInterface $shortUrlService;
 
     protected function setUp(): void
     {
         $this->shortUrlService = $this->createMock(ShortUrlServiceInterface::class);
-        $this->action = new EditShortUrlAction($this->shortUrlService, new ShortUrlDataTransformer(
-            new ShortUrlStringifier([]),
-        ));
+        $this->action = new EditShortUrlAction(
+            $this->shortUrlService,
+            new ShortUrlDataTransformer(new ShortUrlStringifier()),
+            new MapperBuilder()->mapper(),
+        );
     }
 
-    /** @test */
-    public function invalidDataThrowsError(): void
-    {
-        $request = (new ServerRequest())->withParsedBody([
-            'maxVisits' => 'invalid',
-        ]);
-        $this->shortUrlService->expects($this->never())->method('updateShortUrl');
-
-        $this->expectException(ValidationException::class);
-
-        $this->action->handle($request);
-    }
-
-    /** @test */
+    #[Test]
     public function correctShortCodeReturnsSuccess(): void
     {
-        $request = (new ServerRequest())->withAttribute('shortCode', 'abc123')
-                                        ->withAttribute(ApiKey::class, ApiKey::create())
-                                        ->withParsedBody([
-                                            'maxVisits' => 5,
-                                        ]);
-        $this->shortUrlService->expects($this->once())->method('updateShortUrl')->willReturn(ShortUrl::createEmpty());
+        $request = ServerRequestFactory::fromGlobals()
+            ->withAttribute('shortCode', 'abc123')
+            ->withAttribute(ApiKey::class, ApiKey::create())
+            ->withParsedBody(['maxVisits' => 5]);
+        $this->shortUrlService->expects($this->once())->method('updateShortUrl')->willReturn(ShortUrl::createFake());
 
         $resp = $this->action->handle($request);
 

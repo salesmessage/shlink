@@ -4,46 +4,51 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\CLI\Command\Domain;
 
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Domain\DomainRedirectsCommand;
 use Shlinkio\Shlink\Core\Config\NotFoundRedirects;
+use Shlinkio\Shlink\Core\Config\Options\NotFoundRedirectOptions;
 use Shlinkio\Shlink\Core\Domain\DomainServiceInterface;
 use Shlinkio\Shlink\Core\Domain\Entity\Domain;
 use Shlinkio\Shlink\Core\Domain\Model\DomainItem;
-use Shlinkio\Shlink\Core\Options\NotFoundRedirectOptions;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function substr_count;
 
 class DomainRedirectsCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & DomainServiceInterface $domainService;
+    private MockObject&DomainServiceInterface $domainService;
 
     protected function setUp(): void
     {
         $this->domainService = $this->createMock(DomainServiceInterface::class);
-        $this->commandTester = $this->testerForCommand(new DomainRedirectsCommand($this->domainService));
+        $this->commandTester = CliTestUtils::testerForCommand(new DomainRedirectsCommand($this->domainService));
     }
 
-    /**
-     * @test
-     * @dataProvider provideDomains
-     */
-    public function onlyPlainQuestionsAreAskedForNewDomainsAndDomainsWithNoRedirects(?Domain $domain): void
+    #[Test, DataProvider('provideDomains')]
+    public function onlyPlainQuestionsAreAskedForNewDomainsAndDomainsWithNoRedirects(Domain|null $domain): void
     {
         $domainAuthority = 'my-domain.com';
-        $this->domainService->expects($this->once())->method('findByAuthority')->with($domainAuthority)->willReturn(
-            $domain,
-        );
-        $this->domainService->expects($this->once())->method('configureNotFoundRedirects')->with(
-            $domainAuthority,
-            NotFoundRedirects::withRedirects('foo.com', null, 'baz.com'),
-        )->willReturn(Domain::withAuthority(''));
+        $this->domainService
+            ->expects($this->once())
+            ->method('findByAuthority')
+            ->with($domainAuthority)
+            ->willReturn(
+                $domain,
+            );
+        $this->domainService
+            ->expects($this->once())
+            ->method('configureNotFoundRedirects')
+            ->with(
+                $domainAuthority,
+                NotFoundRedirects::withRedirects('foo.com', null, 'baz.com'),
+            )
+            ->willReturn(Domain::withAuthority(''));
         $this->domainService->expects($this->never())->method('listDomains');
 
         $this->commandTester->setInputs(['foo.com', '', 'baz.com']);
@@ -60,26 +65,34 @@ class DomainRedirectsCommandTest extends TestCase
         self::assertEquals(3, substr_count($output, '(Leave empty for no redirect)'));
     }
 
-    public function provideDomains(): iterable
+    public static function provideDomains(): iterable
     {
         yield 'no domain' => [null];
         yield 'domain without redirects' => [Domain::withAuthority('')];
     }
 
-    /** @test */
+    #[Test]
     public function offersNewOptionsForDomainsWithExistingRedirects(): void
     {
         $domainAuthority = 'example.com';
         $domain = Domain::withAuthority($domainAuthority);
         $domain->configureNotFoundRedirects(NotFoundRedirects::withRedirects('foo.com', 'bar.com', 'baz.com'));
 
-        $this->domainService->expects($this->once())->method('findByAuthority')->with($domainAuthority)->willReturn(
-            $domain,
-        );
-        $this->domainService->expects($this->once())->method('configureNotFoundRedirects')->with(
-            $domainAuthority,
-            NotFoundRedirects::withRedirects(null, 'edited.com', 'baz.com'),
-        )->willReturn($domain);
+        $this->domainService
+            ->expects($this->once())
+            ->method('findByAuthority')
+            ->with($domainAuthority)
+            ->willReturn(
+                $domain,
+            );
+        $this->domainService
+            ->expects($this->once())
+            ->method('configureNotFoundRedirects')
+            ->with(
+                $domainAuthority,
+                NotFoundRedirects::withRedirects(null, 'edited.com', 'baz.com'),
+            )
+            ->willReturn($domain);
         $this->domainService->expects($this->never())->method('listDomains');
 
         $this->commandTester->setInputs(['2', '1', 'edited.com', '0']);
@@ -95,20 +108,28 @@ class DomainRedirectsCommandTest extends TestCase
         self::assertEquals(3, substr_count($output, 'Remove redirect'));
     }
 
-    /** @test */
+    #[Test]
     public function authorityIsRequestedWhenNotProvidedAndNoOtherDomainsExist(): void
     {
         $domainAuthority = 'example.com';
         $domain = Domain::withAuthority($domainAuthority);
 
         $this->domainService->expects($this->once())->method('listDomains')->with()->willReturn([]);
-        $this->domainService->expects($this->once())->method('findByAuthority')->with($domainAuthority)->willReturn(
-            $domain,
-        );
-        $this->domainService->expects($this->once())->method('configureNotFoundRedirects')->with(
-            $domainAuthority,
-            NotFoundRedirects::withoutRedirects(),
-        )->willReturn($domain);
+        $this->domainService
+            ->expects($this->once())
+            ->method('findByAuthority')
+            ->with($domainAuthority)
+            ->willReturn(
+                $domain,
+            );
+        $this->domainService
+            ->expects($this->once())
+            ->method('configureNotFoundRedirects')
+            ->with(
+                $domainAuthority,
+                NotFoundRedirects::withoutRedirects(),
+            )
+            ->willReturn($domain);
 
         $this->commandTester->setInputs([$domainAuthority, '', '', '']);
         $this->commandTester->execute([]);
@@ -117,24 +138,36 @@ class DomainRedirectsCommandTest extends TestCase
         self::assertStringContainsString('Domain authority for which you want to set specific redirects', $output);
     }
 
-    /** @test */
+    #[Test]
     public function oneOfTheExistingDomainsCanBeSelected(): void
     {
         $domainAuthority = 'existing-two.com';
         $domain = Domain::withAuthority($domainAuthority);
 
-        $this->domainService->expects($this->once())->method('listDomains')->with()->willReturn([
-            DomainItem::forDefaultDomain('default-domain.com', new NotFoundRedirectOptions()),
-            DomainItem::forNonDefaultDomain(Domain::withAuthority('existing-one.com')),
-            DomainItem::forNonDefaultDomain(Domain::withAuthority($domainAuthority)),
-        ]);
-        $this->domainService->expects($this->once())->method('findByAuthority')->with($domainAuthority)->willReturn(
-            $domain,
-        );
-        $this->domainService->expects($this->once())->method('configureNotFoundRedirects')->with(
-            $domainAuthority,
-            NotFoundRedirects::withoutRedirects(),
-        )->willReturn($domain);
+        $this->domainService
+            ->expects($this->once())
+            ->method('listDomains')
+            ->with()
+            ->willReturn([
+                DomainItem::forDefaultDomain('default-domain.com', new NotFoundRedirectOptions()),
+                DomainItem::forNonDefaultDomain(Domain::withAuthority('existing-one.com')),
+                DomainItem::forNonDefaultDomain(Domain::withAuthority($domainAuthority)),
+            ]);
+        $this->domainService
+            ->expects($this->once())
+            ->method('findByAuthority')
+            ->with($domainAuthority)
+            ->willReturn(
+                $domain,
+            );
+        $this->domainService
+            ->expects($this->once())
+            ->method('configureNotFoundRedirects')
+            ->with(
+                $domainAuthority,
+                NotFoundRedirects::withoutRedirects(),
+            )
+            ->willReturn($domain);
 
         $this->commandTester->setInputs(['1', '', '', '']);
         $this->commandTester->execute([]);
@@ -146,24 +179,36 @@ class DomainRedirectsCommandTest extends TestCase
         self::assertStringContainsString($domainAuthority, $output);
     }
 
-    /** @test */
+    #[Test]
     public function aNewDomainCanBeCreatedEvenIfOthersAlreadyExist(): void
     {
         $domainAuthority = 'new-domain.com';
         $domain = Domain::withAuthority($domainAuthority);
 
-        $this->domainService->expects($this->once())->method('listDomains')->with()->willReturn([
-            DomainItem::forDefaultDomain('default-domain.com', new NotFoundRedirectOptions()),
-            DomainItem::forNonDefaultDomain(Domain::withAuthority('existing-one.com')),
-            DomainItem::forNonDefaultDomain(Domain::withAuthority('existing-two.com')),
-        ]);
-        $this->domainService->expects($this->once())->method('findByAuthority')->with($domainAuthority)->willReturn(
-            $domain,
-        );
-        $this->domainService->expects($this->once())->method('configureNotFoundRedirects')->with(
-            $domainAuthority,
-            NotFoundRedirects::withoutRedirects(),
-        )->willReturn($domain);
+        $this->domainService
+            ->expects($this->once())
+            ->method('listDomains')
+            ->with()
+            ->willReturn([
+                DomainItem::forDefaultDomain('default-domain.com', new NotFoundRedirectOptions()),
+                DomainItem::forNonDefaultDomain(Domain::withAuthority('existing-one.com')),
+                DomainItem::forNonDefaultDomain(Domain::withAuthority('existing-two.com')),
+            ]);
+        $this->domainService
+            ->expects($this->once())
+            ->method('findByAuthority')
+            ->with($domainAuthority)
+            ->willReturn(
+                $domain,
+            );
+        $this->domainService
+            ->expects($this->once())
+            ->method('configureNotFoundRedirects')
+            ->with(
+                $domainAuthority,
+                NotFoundRedirects::withoutRedirects(),
+            )
+            ->willReturn($domain);
 
         $this->commandTester->setInputs(['2', $domainAuthority, '', '', '']);
         $this->commandTester->execute([]);

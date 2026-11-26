@@ -16,13 +16,14 @@ use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlIdentifier;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlResolverInterface;
 use Shlinkio\Shlink\Core\Visit\RequestTrackerInterface;
 
+use const Shlinkio\Shlink\REDIRECT_URL_REQUEST_ATTRIBUTE;
+
 abstract class AbstractTrackingAction implements MiddlewareInterface, RequestMethodInterface
 {
     public function __construct(
         private readonly ShortUrlResolverInterface $urlResolver,
         private readonly RequestTrackerInterface $requestTracker,
-    ) {
-    }
+    ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
@@ -30,9 +31,13 @@ abstract class AbstractTrackingAction implements MiddlewareInterface, RequestMet
 
         try {
             $shortUrl = $this->urlResolver->resolveEnabledShortUrl($identifier);
-            $this->requestTracker->trackIfApplicable($shortUrl, $request);
+            $response = $this->createSuccessResp($shortUrl, $request);
+            $this->requestTracker->trackIfApplicable($shortUrl, $request->withAttribute(
+                REDIRECT_URL_REQUEST_ATTRIBUTE,
+                $response->hasHeader('Location') ? $response->getHeaderLine('Location') : null,
+            ));
 
-            return $this->createSuccessResp($shortUrl, $request);
+            return $response;
         } catch (ShortUrlNotFoundException) {
             return $this->createErrorResp($request, $handler);
         }

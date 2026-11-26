@@ -5,63 +5,61 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\CLI\Command\Tag;
 
 use Pagerfanta\Adapter\ArrayAdapter;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Tag\GetTagVisitsCommand;
 use Shlinkio\Shlink\Common\Paginator\Paginator;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
-use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifierInterface;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Shlinkio\Shlink\Core\Visit\Entity\VisitLocation;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
+use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Core\Visit\VisitsStatsHelperInterface;
 use Shlinkio\Shlink\IpGeolocation\Model\Location;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class GetTagVisitsCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & VisitsStatsHelperInterface $visitsHelper;
-    private MockObject & ShortUrlStringifierInterface $stringifier;
+    private MockObject&VisitsStatsHelperInterface $visitsHelper;
 
     protected function setUp(): void
     {
         $this->visitsHelper = $this->createMock(VisitsStatsHelperInterface::class);
-        $this->stringifier = $this->createMock(ShortUrlStringifierInterface::class);
-
-        $this->commandTester = $this->testerForCommand(
-            new GetTagVisitsCommand($this->visitsHelper, $this->stringifier),
-        );
+        $this->commandTester = CliTestUtils::testerForCommand(new GetTagVisitsCommand($this->visitsHelper));
     }
 
-    /** @test */
+    #[Test]
     public function outputIsProperlyGenerated(): void
     {
-        $shortUrl = ShortUrl::createEmpty();
-        $visit = Visit::forValidShortUrl($shortUrl, new Visitor('bar', 'foo', '', ''))->locate(
-            VisitLocation::fromGeolocation(new Location('', 'Spain', '', 'Madrid', 0, 0, '')),
+        $shortUrl = ShortUrl::createFake();
+        $visit = Visit::forValidShortUrl($shortUrl, Visitor::fromParams('bar', 'foo', ''))->locate(
+            VisitLocation::fromLocation(new Location('', 'Spain', '', 'Madrid', 0, 0, '')),
         );
         $tag = 'abc123';
-        $this->visitsHelper->expects($this->once())->method('visitsForTag')->with($tag, $this->anything())->willReturn(
-            new Paginator(new ArrayAdapter([$visit])),
-        );
-        $this->stringifier->expects($this->once())->method('stringify')->with($shortUrl)->willReturn('the_short_url');
+        $this->visitsHelper
+            ->expects($this->once())
+            ->method('visitsForTag')
+            ->with($tag, $this->anything())
+            ->willReturn(
+                new Paginator(new ArrayAdapter([$visit])),
+            );
 
         $this->commandTester->execute(['tag' => $tag]);
         $output = $this->commandTester->getDisplay();
+        $type = VisitType::VALID_SHORT_URL->value;
 
         self::assertEquals(
             <<<OUTPUT
-            +---------+---------------------------+------------+---------+--------+---------------+
-            | Referer | Date                      | User agent | Country | City   | Short Url     |
-            +---------+---------------------------+------------+---------+--------+---------------+
-            | foo     | {$visit->getDate()->toAtomString()} | bar        | Spain   | Madrid | the_short_url |
-            +---------+---------------------------+------------+---------+--------+---------------+
+                +---------------------------+---------------+------------+---------+---------+--------+--------+-------------+--------------+-----------------+
+                | Date                      | Potential bot | User agent | Referer | Country | Region | City   | Visited URL | Redirect URL | Type            |
+                +---------------------------+---------------+------------+---------+---------+--------+--------+-------------+--------------+-----------------+
+                | {$visit->date->toAtomString()} |               | bar        | foo     | Spain   |        | Madrid |             | Unknown      | {$type} |
+                +---------------------------+---------------+------------+------- Page 1 of 1 --------+--------+-------------+--------------+-----------------+
 
-            OUTPUT,
+                OUTPUT,
             $output,
         );
     }

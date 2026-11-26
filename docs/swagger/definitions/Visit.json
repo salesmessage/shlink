@@ -1,6 +1,6 @@
 {
     "type": "object",
-    "required": ["referer", "date", "userAgent", "visitLocation"],
+    "required": ["referer", "date", "userAgent", "visitLocation", "potentialBot", "visitedUrl", "id", "deviceType", "deviceTypeDetail"],
     "properties": {
         "referer": {
             "type": "string",
@@ -9,7 +9,7 @@
         "date": {
             "type": "string",
             "format": "date-time",
-            "description": "The date in which the visit was performed"
+            "description": "The date in which the visit was performed, in UTC"
         },
         "userAgent": {
             "type": "string",
@@ -22,30 +22,26 @@
             "type": "boolean",
             "description": "Tells if Shlink thinks this visit comes potentially from a bot or crawler"
         },
+        "visitedUrl": {
+            "type": ["string", "null"],
+            "description": "The originally visited URL that triggered the tracking of this visit"
+        },
+        "redirectUrl": {
+            "type": ["string", "null"],
+            "description": "The URL to which the visitor was redirected, or null if a redirect did not occur, like for 404 requests or pixel tracking"
+        },
         "id": {
             "type": "integer",
             "description": "This visit's own stable identity, which is never reused"
         },
-        "visitedUrl": {
-            "type": "string",
-            "nullable": true,
-            "description": "The full URL which was visited, including the query string"
-        },
         "deviceType": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-                "mobile",
-                "tablet",
-                "desktop",
-                "other"
-            ],
-            "description": "The device class assigned to this visit. Anything not positively recognized as mobile, tablet or desktop is reported as other, never as desktop. Null for visits captured before device classification existed"
+            "type": ["string", "null"],
+            "enum": ["mobile", "tablet", "desktop", "other", null],
+            "description": "The device class assigned to this visit. Anything not positively recognized as mobile, tablet or desktop is reported as other, never as desktop. Null for imported visits and visits captured before device classification existed"
         },
         "deviceTypeDetail": {
-            "type": "string",
-            "nullable": true,
-            "description": "The underlying device type the other class stands for, or an explicit unknown marker where it could not be determined. Null when deviceType is not other"
+            "type": ["string", "null"],
+            "description": "The underlying device type the other class stands for (smart-tv, console), or unknown where it could not be determined. Null when deviceType is not other"
         }
     }
 }

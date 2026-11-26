@@ -6,6 +6,7 @@ namespace ShlinkioTest\Shlink\Rest\Action\Visit;
 
 use Laminas\Diactoros\ServerRequestFactory;
 use Pagerfanta\Adapter\ArrayAdapter;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Common\Paginator\Paginator;
@@ -17,7 +18,7 @@ use Shlinkio\Shlink\Rest\Entity\ApiKey;
 class TagVisitsActionTest extends TestCase
 {
     private TagVisitsAction $action;
-    private MockObject & VisitsStatsHelperInterface $visitsHelper;
+    private MockObject&VisitsStatsHelperInterface $visitsHelper;
 
     protected function setUp(): void
     {
@@ -25,16 +26,20 @@ class TagVisitsActionTest extends TestCase
         $this->action = new TagVisitsAction($this->visitsHelper);
     }
 
-    /** @test */
+    #[Test]
     public function providingCorrectTagReturnsVisits(): void
     {
         $tag = 'foo';
         $apiKey = ApiKey::create();
-        $this->visitsHelper->expects($this->once())->method('visitsForTag')->with(
-            $tag,
-            $this->isInstanceOf(VisitsParams::class),
-            $apiKey,
-        )->willReturn(new Paginator(new ArrayAdapter([])));
+        $this->visitsHelper
+            ->expects($this->once())
+            ->method('visitsForTag')
+            ->with(
+                $tag,
+                $this->isInstanceOf(VisitsParams::class),
+                $apiKey,
+            )
+            ->willReturn(new Paginator(new ArrayAdapter([])));
 
         $response = $this->action->handle(
             ServerRequestFactory::fromGlobals()->withAttribute('tag', $tag)->withAttribute(ApiKey::class, $apiKey),

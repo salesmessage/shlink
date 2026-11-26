@@ -8,17 +8,15 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Shlinkio\Shlink\Core\Options\UrlShortenerOptions;
+use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 
 use function rtrim;
 
 class TrimTrailingSlashMiddleware implements MiddlewareInterface
 {
-    private const SHORT_CODE_ATTR = 'shortCode';
+    private const string SHORT_CODE_ATTR = 'shortCode';
 
-    public function __construct(private readonly UrlShortenerOptions $options)
-    {
-    }
+    public function __construct(private readonly UrlShortenerOptions $options) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
@@ -34,6 +32,6 @@ class TrimTrailingSlashMiddleware implements MiddlewareInterface
         $shortCode = $request->getAttribute(self::SHORT_CODE_ATTR);
         $shouldTrimSlash = $shortCode !== null && $this->options->trailingSlashEnabled;
 
-        return  $shouldTrimSlash ? $request->withAttribute(self::SHORT_CODE_ATTR, rtrim($shortCode, '/')) : $request;
+        return $shouldTrimSlash ? $request->withAttribute(self::SHORT_CODE_ATTR, rtrim($shortCode, '/')) : $request;
     }
 }

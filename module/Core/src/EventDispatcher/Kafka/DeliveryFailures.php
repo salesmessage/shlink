@@ -23,7 +23,7 @@ final class DeliveryFailures
 
     public function hasAny(): bool
     {
-        return ! empty($this->errorCodes);
+        return !empty($this->errorCodes);
     }
 
     public function summary(): string

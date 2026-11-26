@@ -4,31 +4,34 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\Rest\Middleware;
 
+use Fig\Http\Message\RequestMethodInterface;
 use Laminas\Diactoros\Response;
 use Laminas\Diactoros\ServerRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Server\RequestHandlerInterface;
+use Shlinkio\Shlink\Core\Config\Options\CorsOptions;
 use Shlinkio\Shlink\Rest\Middleware\CrossDomainMiddleware;
 
 class CrossDomainMiddlewareTest extends TestCase
 {
-    private CrossDomainMiddleware $middleware;
-    private MockObject & RequestHandlerInterface $handler;
+    private MockObject&RequestHandlerInterface $handler;
 
     protected function setUp(): void
     {
-        $this->middleware = new CrossDomainMiddleware(['max_age' => 1000]);
         $this->handler = $this->createMock(RequestHandlerInterface::class);
     }
 
-    /** @test */
+    #[Test]
     public function nonCrossDomainRequestsAreNotAffected(): void
     {
-        $originalResponse = (new Response())->withStatus(404);
+        $originalResponse = new Response()->withStatus(404);
         $this->handler->expects($this->once())->method('handle')->willReturn($originalResponse);
 
-        $response = $this->middleware->process(new ServerRequest(), $this->handler);
+        $response = $this->middleware()->process(new ServerRequest(), $this->handler);
         $headers = $response->getHeaders();
 
         self::assertSame($originalResponse, $response);
@@ -39,13 +42,13 @@ class CrossDomainMiddlewareTest extends TestCase
         self::assertArrayNotHasKey('Access-Control-Allow-Headers', $headers);
     }
 
-    /** @test */
+    #[Test]
     public function anyRequestIncludesTheAllowAccessHeader(): void
     {
         $originalResponse = new Response();
         $this->handler->expects($this->once())->method('handle')->willReturn($originalResponse);
 
-        $response = $this->middleware->process((new ServerRequest())->withHeader('Origin', 'local'), $this->handler);
+        $response = $this->middleware()->process(new ServerRequest()->withHeader('Origin', 'local'), $this->handler);
         self::assertNotSame($originalResponse, $response);
 
         $headers = $response->getHeaders();
@@ -56,17 +59,17 @@ class CrossDomainMiddlewareTest extends TestCase
         self::assertArrayNotHasKey('Access-Control-Allow-Headers', $headers);
     }
 
-    /** @test */
+    #[Test]
     public function optionsRequestIncludesMoreHeaders(): void
     {
         $originalResponse = new Response();
-        $request = (new ServerRequest())
+        $request = new ServerRequest()
             ->withMethod('OPTIONS')
             ->withHeader('Origin', 'local')
             ->withHeader('Access-Control-Request-Headers', 'foo, bar, baz');
         $this->handler->expects($this->once())->method('handle')->willReturn($originalResponse);
 
-        $response = $this->middleware->process($request, $this->handler);
+        $response = $this->middleware()->process($request, $this->handler);
         self::assertNotSame($originalResponse, $response);
 
         $headers = $response->getHeaders();
@@ -78,55 +81,51 @@ class CrossDomainMiddlewareTest extends TestCase
         self::assertEquals(204, $response->getStatusCode());
     }
 
-    /**
-     * @test
-     * @dataProvider provideRouteResults
-     */
+    #[Test, DataProvider('provideRouteResults')]
     public function optionsRequestParsesRouteMatchToDetermineAllowedMethods(
-        ?string $allowHeader,
+        string|null $allowHeader,
         string $expectedAllowedMethods,
     ): void {
         $originalResponse = new Response();
         if ($allowHeader !== null) {
             $originalResponse = $originalResponse->withHeader('Allow', $allowHeader);
         }
-        $request = (new ServerRequest())->withHeader('Origin', 'local')
-                                        ->withMethod('OPTIONS');
+        $request = new ServerRequest()
+            ->withHeader('Origin', 'local')
+            ->withMethod('OPTIONS');
         $this->handler->expects($this->once())->method('handle')->willReturn($originalResponse);
 
-        $response = $this->middleware->process($request, $this->handler);
+        $response = $this->middleware()->process($request, $this->handler);
 
         self::assertEquals($response->getHeaderLine('Access-Control-Allow-Methods'), $expectedAllowedMethods);
         self::assertEquals(204, $response->getStatusCode());
     }
 
-    public function provideRouteResults(): iterable
+    public static function provideRouteResults(): iterable
     {
         yield 'no allow header in response' => [null, 'GET,POST,PUT,PATCH,DELETE'];
         yield 'allow header in response' => ['POST,GET', 'POST,GET'];
         yield 'also allow header in response' => ['DELETE,PATCH,PUT', 'DELETE,PATCH,PUT'];
     }
 
-    /**
-     * @test
-     * @dataProvider provideMethods
-     */
+    #[Test, DataProvider('provideMethods')]
     public function expectedStatusCodeIsReturnDependingOnRequestMethod(
         string $method,
         int $status,
         int $expectedStatus,
     ): void {
-        $originalResponse = (new Response())->withStatus($status);
-        $request = (new ServerRequest())->withMethod($method)
-                                        ->withHeader('Origin', 'local');
+        $originalResponse = new Response()->withStatus($status);
+        $request = new ServerRequest()
+            ->withMethod($method)
+            ->withHeader('Origin', 'local');
         $this->handler->expects($this->once())->method('handle')->willReturn($originalResponse);
 
-        $response = $this->middleware->process($request, $this->handler);
+        $response = $this->middleware()->process($request, $this->handler);
 
         self::assertEquals($expectedStatus, $response->getStatusCode());
     }
 
-    public function provideMethods(): iterable
+    public static function provideMethods(): iterable
     {
         yield 'POST 200' => ['POST', 200, 200];
         yield 'POST 400' => ['POST', 400, 400];
@@ -143,5 +142,35 @@ class CrossDomainMiddlewareTest extends TestCase
         yield 'OPTIONS 200' => ['OPTIONS', 200, 204];
         yield 'OPTIONS 400' => ['OPTIONS', 400, 204];
         yield 'OPTIONS 500' => ['OPTIONS', 500, 204];
+    }
+
+    #[Test]
+    #[TestWith([true, RequestMethodInterface::METHOD_OPTIONS])]
+    #[TestWith([false, RequestMethodInterface::METHOD_OPTIONS])]
+    #[TestWith([true, RequestMethodInterface::METHOD_GET])]
+    #[TestWith([false, RequestMethodInterface::METHOD_GET])]
+    #[TestWith([true, RequestMethodInterface::METHOD_POST])]
+    #[TestWith([false, RequestMethodInterface::METHOD_POST])]
+    public function credentialsAreAllowedIfConfiguredSo(bool $allowCredentials, string $method): void
+    {
+        $originalResponse = new Response();
+        $request = new ServerRequest()
+            ->withMethod($method)
+            ->withHeader('Origin', 'local');
+        $this->handler->expects($this->once())->method('handle')->willReturn($originalResponse);
+
+        $response = $this->middleware(allowCredentials: $allowCredentials)->process($request, $this->handler);
+        $headers = $response->getHeaders();
+
+        if ($allowCredentials) {
+            self::assertArrayHasKey('Access-Control-Allow-Credentials', $headers);
+        } else {
+            self::assertArrayNotHasKey('Access-Control-Allow-Credentials', $headers);
+        }
+    }
+
+    private function middleware(bool $allowCredentials = false): CrossDomainMiddleware
+    {
+        return new CrossDomainMiddleware(new CorsOptions(allowCredentials: $allowCredentials, maxAge: 1000));
     }
 }

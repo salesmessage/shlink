@@ -29,9 +29,28 @@ jobs:
   main:
     name: Tests and static analysis
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
+
+    # The database of the DB and API suites; config/test/test_config.global.php reads it at 127.0.0.1:5434 when CI is set
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: shlink_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      LC_ALL: C
 
     steps:
       - name: Refuse pull requests from forks
@@ -44,12 +63,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup PHP 8.4
+      - name: Setup PHP 8.5
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
-          php-version: '8.4'
-          # Mirrors sm-php-cli:8.4, the image ./indocker_test runs the same suite in
-          extensions: curl, gd, mbstring, pdo, pdo_pgsql, pdo_sqlite, redis, sockets, sodium, zip
+          php-version: '8.5'
+          # The extensions of the production image (Dockerfile), except rdkafka: no test talks to Kafka
+          extensions: bcmath, calendar, curl, intl, mbstring, pdo, pdo_pgsql, pdo_sqlite, sockets, zip
           coverage: none
 
       - name: Resolve composer cache directory
@@ -60,8 +79,8 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-php8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-php8.4-
+          key: composer-${{ runner.os }}-php8.5-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.5-
 
       - name: Install dependencies
         env:
@@ -82,12 +101,34 @@ jobs:
             --prefer-dist \
             --no-scripts \
             --no-plugins \
-            --ignore-platform-req=php \
             --ignore-platform-req=ext-rdkafka
 
-      - name: Analysis
-        run: composer stan
+      - name: Download the RoadRunner binary
+        env:
+          # rr get reads it to avoid the GitHub API rate limit of anonymous calls
+          GITHUB_TOKEN: ${{ github.token }}
+        # The same version as RR_VERSION in the Dockerfile
+        run: ./vendor/bin/rr get --no-interaction --no-config --filter=3.0.1 --location bin/ && chmod +x bin/rr
 
-      - name: Run tests
+      - name: Lint and format
+        run: composer cs
+
+      - name: Analysis
+        if: '!cancelled()'
+        run: composer analyze
+
+      - name: OpenAPI spec
+        if: '!cancelled()'
+        run: composer openapi:validate
+
+      - name: Unit tests
         if: '!cancelled()'
         run: composer test:unit
+
+      - name: Database tests (Postgres)
+        if: '!cancelled()'
+        run: composer test:db:postgres
+
+      - name: API tests (Postgres)
+        if: '!cancelled()'
+        run: composer test:api

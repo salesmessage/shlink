@@ -1,5 +1,77 @@
 # Upgrading
 
+## From v4.x to v5.x
+
+### General
+
+* Generating QR codes by appending `/qr-code` to a short URL is no longer possible. Use external services to generate QR codes from a short URL, or the logic embedded in Shlink Web Client and Shlink Dashboard.
+* Shlink no longer tries to detect trusted proxies automatically, when resolving the visitor's IP address.
+    Instead, if you have more than 1 proxy in front of Shlink, you should provide `TRUSTED_PROXIES` env var, with either a comma-separated list of the IP addresses of your proxies, or a number indicating how many proxies are there in front of Shlink.
+* PHP 8.3 is no longer supported. Only 8.4 and 8.5 are officially supported as of Shlink 5.0.0.
+
+### Changes in CLI
+
+* Disabling API keys by their plain-text key is no longer supported. When calling `api-key:disable`, the first argument is now always assumed to be the name.
+* All visits-related commands (`short-url:visits`, `tag:visits`, `domain:visits`, `visit:orphan` and `visit:non-orphan`) now return more information, and columns are arranged slightly differently.
+* The `short-url:list` command no longer accepts `--including-all-tags` and `--show-api-key-name` options. Use `--tags-all` and `--show-api-key` instead.
+* The `short-url:list` command no longer allows ordering using the `--order-by=field,dir` format. Use `--order-by=field-dir` instead.
+* All commands which used to accept the `--tags` flag, no longer accept it. Pass `--tag` multiple times instead, one per tag.
+
+### Changes in env vars
+
+* The `REDIRECT_APPEND_EXTRA_PATH` env var is no longer supported. Use `REDIRECT_EXTRA_PATH_MODE=append` to enable the same behavior.
+
+## From v3.x to v4.x
+
+### General
+
+* Swoole and Openswoole are no longer officially supported runtimes. The recommended alternative is RoadRunner.
+* Dist files for swoole/openswoole are no longer published.
+* Webhooks are no longer supported. Migrate to one of the other [real-time updates](https://shlink.io/documentation/advanced/real-time-updates/) mechanisms.
+* When using RoadRunner, the amount of web workers, task workers and the port number can no longer be provided via config options. Use `WEB_WORKER_NUM`, `TASK_WORKER_NUM` and `PORT` env vars instead.
+
+### Changes in URL shortener
+
+* The short URLs `loosely` mode is no longer supported, as it was a typo. Use `loose` mode instead.
+* QR codes URLs now work by default, even for short URLs that cannot be visited due to max visits or date range limitations.
+  If you want to keep previous behavior, pass `QR_CODE_FOR_DISABLED_SHORT_URLS=false` or the equivalent configuration option.
+* Long URL title resolution is now enabled by default. You can still disable it by passing `AUTO_RESOLVE_TITLES=false` or the equivalent configuration option.
+  **SalesMessage fork:** the default stays `false`, as before the upgrade: resolving titles fetches every long URL that core shortens. Enable it with `AUTO_RESOLVE_TITLES=true`.
+* Shlink no longer allows to opt-in for long URL verification. Long URLs are unconditionally considered correct during short URL creation/edition.
+* Device long URLs have been migrated to the new Dynamic rule-based redirects system and will continue to work as expected, but the API surface has changed.
+  If you use shlink-web-client and rely on this feature when creating/updating short URLs, **DO NOT UPDATE YET**. Support for dynamic rule-based redirects will be added to shlink-web-client soon, in v4.1.0
+
+### Changes in REST API
+
+* REST API v1/v2 now behave like v3. This only affects error codes, which are now proper URIs.
+  * `INVALID_ARGUMENT` -> `https://shlink.io/api/error/invalid-data`
+  * `INVALID_SHORT_URL_DELETION` -> `https://shlink.io/api/error/invalid-short-url-deletion`
+  * `DOMAIN_NOT_FOUND` -> `https://shlink.io/api/error/domain-not-found`
+  * `FORBIDDEN_OPERATION` -> `https://shlink.io/api/error/forbidden-tag-operation`
+  * `INVALID_SLUG` -> `https://shlink.io/api/error/non-unique-slug`
+  * `INVALID_SHORTCODE` -> `https://shlink.io/api/error/short-url-not-found`
+  * `TAG_CONFLICT` -> `https://shlink.io/api/error/tag-conflict`
+  * `TAG_NOT_FOUND` -> `https://shlink.io/api/error/tag-not-found`
+  * `MERCURE_NOT_CONFIGURED` -> `https://shlink.io/api/error/mercure-not-configured`
+  * `INVALID_AUTHORIZATION` -> `https://shlink.io/api/error/missing-authentication`
+  * `INVALID_API_KEY` -> `https://shlink.io/api/error/invalid-api-key`
+* Endpoints previously returning props like `"visitsCount": {number}` no longer do it. There should be an alternative `"visitsSummary": {}` object with the amount nested on it.
+* It is no longer possible to order the short URLs list with `orderBy=visitsCount-ASC`/`orderBy=visitsCount-DESC`. Use `orderBy=visits-ASC`/`orderBy=visits-DESC` instead.
+* It is no longer possible to get tags with stats using `GET /tags?withStats=true`. Use `GET /tags/stats` endpoint instead.
+* The `deviceLongUrls` are ignored when calling `POST /short-urls` or `PATCH /short-urls/{shortCode}`. These should now be configured as dynamic rule-based redirects via `POST /short-urls/{shortCode}/redirect-rules`.
+
+### Changes in Docker image
+
+* Since openswoole is no longer supported, there are no longer image tags suffixed with `openswoole`. You should migrate to the default or `roadrunner` ones.
+* The `non-root` docker tag is no longer published, as all docker images are now running without super-user permissions.
+* Due to previous point, it is no longer possible to pass `ENABLE_PERIODIC_VISIT_LOCATE=true` in order to configure a cron job that locates visits periodically.
+  This was not really needed in the docker image, as visits are located on the fly.
+
+### Changes in integrations
+
+* Credentials in redis URLs should now be URL-encoded, as they are unconditionally url-decoded before being used. Previously, it was possible to customize this behavior via `REDIS_DECODE_CREDENTIALS=true|false`.
+* Providing redis URIs in the form of `tcp://password@6.6.6.6:6379` is no longer supported. If you want to provide password with no username, do `tcp://:password@6.6.6.6:6379` instead.
+
 ## From v2.x to v3.x
 
 ### Changes in REST API

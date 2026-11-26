@@ -4,172 +4,226 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\CLI\Command\ShortUrl;
 
+use CuyZ\Valinor\MapperBuilder;
+use Laminas\ServiceManager\Exception\ServiceNotFoundException;
 use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\ShortUrl\CreateShortUrlCommand;
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
-use Shlinkio\Shlink\Core\Exception\InvalidUrlException;
+use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\Exception\NonUniqueSlugException;
-use Shlinkio\Shlink\Core\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifierInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
+use Shlinkio\Shlink\Core\ShortUrl\Model\UrlShorteningResult;
 use Shlinkio\Shlink\Core\ShortUrl\UrlShortenerInterface;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class CreateShortUrlCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
-    private const DEFAULT_DOMAIN = 'default.com';
-
     private CommandTester $commandTester;
-    private MockObject & UrlShortenerInterface $urlShortener;
-    private MockObject & ShortUrlStringifierInterface $stringifier;
+    private MockObject&UrlShortenerInterface $urlShortener;
+    private Stub&ShortUrlStringifierInterface $stringifier;
 
     protected function setUp(): void
     {
         $this->urlShortener = $this->createMock(UrlShortenerInterface::class);
-        $this->stringifier = $this->createMock(ShortUrlStringifierInterface::class);
+        $this->stringifier = $this->createStub(ShortUrlStringifierInterface::class);
 
         $command = new CreateShortUrlCommand(
             $this->urlShortener,
             $this->stringifier,
-            new UrlShortenerOptions(
-                domain: ['hostname' => self::DEFAULT_DOMAIN, 'schema' => ''],
-                defaultShortCodesLength: 5,
-            ),
+            new UrlShortenerOptions(defaultDomain: 'example.com', defaultShortCodesLength: 5),
+            new MapperBuilder()->allowSuperfluousKeys()->mapper(),
         );
-        $this->commandTester = $this->testerForCommand($command);
+        $this->commandTester = CliTestUtils::testerForCommand($command);
     }
 
-    /** @test */
+    #[Test]
     public function properShortCodeIsCreatedIfLongUrlIsCorrect(): void
     {
-        $shortUrl = ShortUrl::createEmpty();
-        $this->urlShortener->expects($this->once())->method('shorten')->withAnyParameters()->willReturn($shortUrl);
-        $this->stringifier->expects($this->once())->method('stringify')->with($shortUrl)->willReturn(
-            'stringified_short_url',
-        );
+        $shortUrl = ShortUrl::createFake();
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->withAnyParameters()
+            ->willReturn(
+                UrlShorteningResult::withoutErrorOnEventDispatching($shortUrl),
+            );
+        $this->stringifier->method('stringify')->willReturnMap([[$shortUrl, 'stringified_short_url']]);
 
         $this->commandTester->execute([
-            'longUrl' => 'http://domain.com/foo/bar',
+            'long-url' => 'http://domain.com/foo/bar',
             '--max-visits' => '3',
-        ]);
+        ], ['verbosity' => OutputInterface::VERBOSITY_VERBOSE]);
         $output = $this->commandTester->getDisplay();
 
-        self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::SUCCESS, $this->commandTester->getStatusCode());
         self::assertStringContainsString('stringified_short_url', $output);
+        self::assertStringNotContainsString('but the real-time updates cannot', $output);
     }
 
-    /** @test */
-    public function exceptionWhileParsingLongUrlOutputsError(): void
+    #[Test]
+    public function longUrlIsAskedIfNotProvided(): void
     {
-        $url = 'http://domain.com/invalid';
-        $this->urlShortener->expects($this->once())->method('shorten')->withAnyParameters()->willThrowException(
-            InvalidUrlException::fromUrl($url),
-        );
-        $this->stringifier->method('stringify')->with($this->isInstanceOf(ShortUrl::class))->willReturn('');
+        $shortUrl = ShortUrl::createFake();
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->withAnyParameters()
+            ->willReturn(
+                UrlShorteningResult::withoutErrorOnEventDispatching($shortUrl),
+            );
+        $this->stringifier->method('stringify')->willReturnMap([[$shortUrl, 'stringified_short_url']]);
 
-        $this->commandTester->execute(['longUrl' => $url]);
-        $output = $this->commandTester->getDisplay();
-
-        self::assertEquals(ExitCodes::EXIT_FAILURE, $this->commandTester->getStatusCode());
-        self::assertStringContainsString('Provided URL http://domain.com/invalid is invalid.', $output);
+        $this->commandTester->setInputs([$shortUrl->longUrl]);
+        $this->commandTester->execute([]);
     }
 
-    /** @test */
+    #[Test]
     public function providingNonUniqueSlugOutputsError(): void
     {
-        $this->urlShortener->expects($this->once())->method('shorten')->withAnyParameters()->willThrowException(
-            NonUniqueSlugException::fromSlug('my-slug'),
-        );
-        $this->stringifier->method('stringify')->with($this->isInstanceOf(ShortUrl::class))->willReturn('');
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->withAnyParameters()
+            ->willThrowException(
+                NonUniqueSlugException::fromSlug('my-slug'),
+            );
+        $this->stringifier->method('stringify')->willReturn('');
 
-        $this->commandTester->execute(['longUrl' => 'http://domain.com/invalid', '--custom-slug' => 'my-slug']);
+        $this->commandTester->execute(['long-url' => 'http://domain.com/invalid', '--custom-slug' => 'my-slug']);
         $output = $this->commandTester->getDisplay();
 
-        self::assertEquals(ExitCodes::EXIT_FAILURE, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::FAILURE, $this->commandTester->getStatusCode());
         self::assertStringContainsString('Provided slug "my-slug" is already in use', $output);
     }
 
-    /** @test */
+    #[Test]
     public function properlyProcessesProvidedTags(): void
     {
-        $shortUrl = ShortUrl::createEmpty();
-        $this->urlShortener->expects($this->once())->method('shorten')->with(
-            $this->callback(function (ShortUrlCreation $meta) {
-                $tags = $meta->getTags();
-                Assert::assertEquals(['foo', 'bar', 'baz', 'boo', 'zar'], $tags);
-                return true;
-            }),
-        )->willReturn($shortUrl);
-        $this->stringifier->expects($this->once())->method('stringify')->with($shortUrl)->willReturn(
-            'stringified_short_url',
-        );
+        $shortUrl = ShortUrl::createFake();
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->with(
+                $this->callback(static function (ShortUrlCreation $creation) {
+                    Assert::assertEquals(['foo', 'bar', 'baz', 'boo', 'zar'], $creation->tags);
+                    return true;
+                }),
+            )
+            ->willReturn(UrlShorteningResult::withoutErrorOnEventDispatching($shortUrl));
+        $this->stringifier->method('stringify')->willReturnMap([[$shortUrl, 'stringified_short_url']]);
 
         $this->commandTester->execute([
-            'longUrl' => 'http://domain.com/foo/bar',
-            '--tags' => ['foo,bar', 'baz', 'boo,zar,baz'],
+            'long-url' => 'http://domain.com/foo/bar',
+            '--tag' => ['foo', 'bar', 'baz', 'boo', 'zar', 'baz'],
         ]);
         $output = $this->commandTester->getDisplay();
 
-        self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::SUCCESS, $this->commandTester->getStatusCode());
         self::assertStringContainsString('stringified_short_url', $output);
     }
 
-    /**
-     * @test
-     * @dataProvider provideDomains
-     */
-    public function properlyProcessesProvidedDomain(array $input, ?string $expectedDomain): void
+    #[Test, DataProvider('provideDomains')]
+    public function properlyProcessesProvidedDomain(array $input, string|null $expectedDomain): void
     {
-        $this->urlShortener->expects($this->once())->method('shorten')->with(
-            $this->callback(function (ShortUrlCreation $meta) use ($expectedDomain) {
-                Assert::assertEquals($expectedDomain, $meta->getDomain());
-                return true;
-            }),
-        )->willReturn(ShortUrl::createEmpty());
-        $this->stringifier->method('stringify')->with($this->isInstanceOf(ShortUrl::class))->willReturn('');
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->with(
+                $this->callback(static function (ShortUrlCreation $meta) use ($expectedDomain) {
+                    Assert::assertEquals($expectedDomain, $meta->domain);
+                    return true;
+                }),
+            )
+            ->willReturn(UrlShorteningResult::withoutErrorOnEventDispatching(ShortUrl::createFake()));
+        $this->stringifier->method('stringify')->willReturn('');
 
-        $input['longUrl'] = 'http://domain.com/foo/bar';
+        $input['long-url'] = 'http://domain.com/foo/bar';
         $this->commandTester->execute($input);
 
-        self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::SUCCESS, $this->commandTester->getStatusCode());
     }
 
-    public function provideDomains(): iterable
+    public static function provideDomains(): iterable
     {
         yield 'no domain' => [[], null];
-        yield 'non-default domain foo' => [['--domain' => 'foo.com'], 'foo.com'];
-        yield 'non-default domain bar' => [['-d' => 'bar.com'], 'bar.com'];
-        yield 'default domain' => [['--domain' => self::DEFAULT_DOMAIN], null];
+        yield 'domain foo' => [['--domain' => 'foo.com'], 'foo.com'];
+        yield 'domain bar' => [['-d' => 'bar.com'], 'bar.com'];
     }
 
-    /**
-     * @test
-     * @dataProvider provideFlags
-     */
-    public function urlValidationHasExpectedValueBasedOnProvidedFlags(array $options, ?bool $expectedValidateUrl): void
-    {
-        $shortUrl = ShortUrl::createEmpty();
-        $this->urlShortener->expects($this->once())->method('shorten')->with(
-            $this->callback(function (ShortUrlCreation $meta) use ($expectedValidateUrl) {
-                Assert::assertEquals($expectedValidateUrl, $meta->doValidateUrl());
-                return true;
-            }),
-        )->willReturn($shortUrl);
-        $this->stringifier->method('stringify')->with($this->isInstanceOf(ShortUrl::class))->willReturn('');
+    #[Test, DataProvider('provideFlags')]
+    public function urlValidationHasExpectedValueBasedOnProvidedFlags(
+        array $options,
+        bool|null $expectedCrawlable,
+    ): void {
+        $shortUrl = ShortUrl::createFake();
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->with(
+                $this->callback(static function (ShortUrlCreation $meta) use ($expectedCrawlable) {
+                    Assert::assertEquals($expectedCrawlable, $meta->crawlable);
+                    return true;
+                }),
+            )
+            ->willReturn(UrlShorteningResult::withoutErrorOnEventDispatching($shortUrl));
+        $this->stringifier->method('stringify')->willReturn('');
 
-        $options['longUrl'] = 'http://domain.com/foo/bar';
+        $options['long-url'] = 'http://domain.com/foo/bar';
         $this->commandTester->execute($options);
     }
 
-    public function provideFlags(): iterable
+    public static function provideFlags(): iterable
     {
         yield 'no flags' => [[], null];
-        yield 'validate-url' => [['--validate-url' => true], true];
+        yield 'crawlable' => [['--crawlable' => true], true];
+    }
+
+    /**
+     * @param callable(string $output): void $assert
+     */
+    #[Test, DataProvider('provideDispatchBehavior')]
+    public function warningIsPrintedInVerboseModeWhenDispatchErrors(int $verbosity, callable $assert): void
+    {
+        $shortUrl = ShortUrl::createFake();
+        $this->urlShortener
+            ->expects($this->once())
+            ->method('shorten')
+            ->withAnyParameters()
+            ->willReturn(
+                UrlShorteningResult::withErrorOnEventDispatching($shortUrl, new ServiceNotFoundException()),
+            );
+        $this->stringifier->method('stringify')->willReturn('stringified_short_url');
+
+        $this->commandTester->execute(['long-url' => 'http://domain.com/foo/bar'], ['verbosity' => $verbosity]);
+        $output = $this->commandTester->getDisplay();
+
+        $assert($output);
+    }
+
+    public static function provideDispatchBehavior(): iterable
+    {
+        $containsAssertion = static fn (string $output) => self::assertStringContainsString(
+            'but the real-time updates cannot',
+            $output,
+        );
+        $doesNotContainAssertion = static fn (string $output) => self::assertStringNotContainsString(
+            'but the real-time updates cannot',
+            $output,
+        );
+
+        yield 'quiet' => [OutputInterface::VERBOSITY_QUIET, $doesNotContainAssertion];
+        yield 'normal' => [OutputInterface::VERBOSITY_NORMAL, $doesNotContainAssertion];
+        yield 'verbose' => [OutputInterface::VERBOSITY_VERBOSE, $containsAssertion];
+        yield 'very verbose' => [OutputInterface::VERBOSITY_VERY_VERBOSE, $containsAssertion];
+        yield 'debug' => [OutputInterface::VERBOSITY_DEBUG, $containsAssertion];
     }
 }

@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="./config/test/bootstrap_db_tests.php"
+    colors="true"
+    cacheDirectory="build/.phpunit/db-tests.cache"
+    displayDetailsOnTestsThatTriggerWarnings="true"
+    displayDetailsOnTestsThatTriggerDeprecations="true"
+    displayDetailsOnPhpunitNotices="true"
+    displayDetailsOnPhpunitDeprecations="true"
+    displayDetailsOnTestsThatTriggerNotices="true"
+>
+    <testsuites>
+        <testsuite name="Shlink database tests">
+            <directory>./module/*/test-db</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>./module/*/src/Repository</directory>
+            <directory>./module/*/src/**/Repository</directory>
+            <directory>./module/*/src/**/**/Repository</directory>
+            <directory>./module/*/src/Spec</directory>
+            <directory>./module/*/src/**/Spec</directory>
+            <directory>./module/*/src/**/**/Spec</directory>
+            <file>./module/Core/src/Visit/Listener/*.php</file>
+        </include>
+    </source>
+</phpunit>

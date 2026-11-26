@@ -7,14 +7,14 @@ namespace Shlinkio\Shlink\Core\Visit\Repository;
 use Cake\Chronos\Chronos;
 
 /**
- * SWR-26047: the visit reads and writes of the one-off bot reclassification (visit:reclassify-bots).
+ * The visit reads and writes of the one-off bot reclassification (visit:reclassify-bots).
  */
 interface BotReclassificationQueryInterface
 {
     /**
      * Id of the first visit on or after the date, so a pass starts there instead of walking older ids.
      */
-    public function findFirstVisitIdSince(Chronos $since): ?int;
+    public function findFirstVisitIdSince(Chronos $since): int|null;
 
     /**
      * Visits to short URLs not flagged as potential bots yet, after the given id, ordered by id.

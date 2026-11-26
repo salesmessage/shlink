@@ -1,5 +1,6 @@
 bin/rr
 config/autoload/*local*
+config/params/shlink_dev_env.*
 data/infra
 data/cache/*
 data/log/*
@@ -16,10 +17,10 @@ vendor
 docs
 indocker
 docker-*
-phpstan.neon
 php*xml*
-infection*
 **/test*
 build*
 **/.*
 !config/roadrunner/.rr.yml
+mago.toml
+mago-analyze-baseline.toml

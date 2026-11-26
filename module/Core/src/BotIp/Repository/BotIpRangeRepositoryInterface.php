@@ -20,5 +20,5 @@ interface BotIpRangeRepositoryInterface
      */
     public function findBySource(BotIpSource $source): array;
 
-    public function findLastSeenAt(BotIpSource $source): ?Chronos;
+    public function findLastSeenAt(BotIpSource $source): Chronos|null;
 }

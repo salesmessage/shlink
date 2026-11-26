@@ -6,15 +6,7 @@ namespace Shlinkio\Shlink\Core\Config;
 
 interface NotFoundRedirectConfigInterface
 {
-    public function invalidShortUrlRedirect(): ?string;
-
-    public function hasInvalidShortUrlRedirect(): bool;
-
-    public function regular404Redirect(): ?string;
-
-    public function hasRegular404Redirect(): bool;
-
-    public function baseUrlRedirect(): ?string;
-
-    public function hasBaseUrlRedirect(): bool;
+    public string|null $invalidShortUrlRedirect { get; }
+    public string|null $regular404Redirect { get; }
+    public string|null $baseUrlRedirect { get; }
 }

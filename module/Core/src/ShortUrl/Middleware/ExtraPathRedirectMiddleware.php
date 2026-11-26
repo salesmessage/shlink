@@ -9,9 +9,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UriInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Shlinkio\Shlink\Core\Config\Options\ExtraPathMode;
+use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\ErrorHandler\Model\NotFoundType;
 use Shlinkio\Shlink\Core\Exception\ShortUrlNotFoundException;
-use Shlinkio\Shlink\Core\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlRedirectionBuilderInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlIdentifier;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlResolverInterface;
@@ -25,40 +26,44 @@ use function implode;
 use function sprintf;
 use function trim;
 
-class ExtraPathRedirectMiddleware implements MiddlewareInterface
+use const Shlinkio\Shlink\REDIRECT_URL_REQUEST_ATTRIBUTE;
+
+readonly class ExtraPathRedirectMiddleware implements MiddlewareInterface
 {
     public function __construct(
-        private readonly ShortUrlResolverInterface $resolver,
-        private readonly RequestTrackerInterface $requestTracker,
-        private readonly ShortUrlRedirectionBuilderInterface $redirectionBuilder,
-        private readonly RedirectResponseHelperInterface $redirectResponseHelper,
-        private readonly UrlShortenerOptions $urlShortenerOptions,
-    ) {
-    }
+        private ShortUrlResolverInterface $resolver,
+        private RequestTrackerInterface $requestTracker,
+        private ShortUrlRedirectionBuilderInterface $redirectionBuilder,
+        private RedirectResponseHelperInterface $redirectResponseHelper,
+        private UrlShortenerOptions $urlShortenerOptions,
+    ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         /** @var NotFoundType|null $notFoundType */
         $notFoundType = $request->getAttribute(NotFoundType::class);
-        if (! $this->shouldApplyLogic($notFoundType)) {
+        if (!$this->shouldApplyLogic($notFoundType)) {
             return $handler->handle($request);
         }
 
         return $this->tryToResolveRedirect($request, $handler);
     }
 
-    private function shouldApplyLogic(?NotFoundType $notFoundType): bool
+    private function shouldApplyLogic(NotFoundType|null $notFoundType): bool
     {
-        if ($notFoundType === null || ! $this->urlShortenerOptions->appendExtraPath) {
+        if ($notFoundType === null || $this->urlShortenerOptions->extraPathMode === ExtraPathMode::DEFAULT) {
             return false;
         }
 
         return (
-            // If multi-segment slugs are enabled, the appropriate not-found type is "invalid_short_url"
-            $this->urlShortenerOptions->multiSegmentSlugsEnabled && $notFoundType->isInvalidShortUrl()
-        ) || (
-            // If multi-segment slugs are disabled, the appropriate not-found type is "regular_404"
-            ! $this->urlShortenerOptions->multiSegmentSlugsEnabled && $notFoundType->isRegularNotFound()
+            (
+                // If multi-segment slugs are enabled, the appropriate not-found type is "invalid_short_url"
+                $this->urlShortenerOptions->multiSegmentSlugsEnabled && $notFoundType->isInvalidShortUrl()
+            ) ||
+            (
+                // If multi-segment slugs are disabled, the appropriate not-found type is "regular_404"
+                !$this->urlShortenerOptions->multiSegmentSlugsEnabled && $notFoundType->isRegularNotFound()
+            )
         );
     }
 
@@ -68,18 +73,24 @@ class ExtraPathRedirectMiddleware implements MiddlewareInterface
         int $shortCodeSegments = 1,
     ): ResponseInterface {
         $uri = $request->getUri();
-        $query = $request->getQueryParams();
         [$potentialShortCode, $extraPath] = $this->resolvePotentialShortCodeAndExtraPath($uri, $shortCodeSegments);
         $identifier = ShortUrlIdentifier::fromShortCodeAndDomain($potentialShortCode, $uri->getAuthority());
 
         try {
             $shortUrl = $this->resolver->resolveEnabledShortUrl($identifier);
-            $this->requestTracker->trackIfApplicable($shortUrl, $request);
+            $longUrl = $this->redirectionBuilder->buildShortUrlRedirect(
+                $shortUrl,
+                $request,
+                $this->urlShortenerOptions->extraPathMode === ExtraPathMode::APPEND ? $extraPath : null,
+            );
+            $this->requestTracker->trackIfApplicable(
+                $shortUrl,
+                $request->withAttribute(REDIRECT_URL_REQUEST_ATTRIBUTE, $longUrl),
+            );
 
-            $longUrl = $this->redirectionBuilder->buildShortUrlRedirect($shortUrl, $query, $extraPath);
             return $this->redirectResponseHelper->buildRedirectResponse($longUrl);
         } catch (ShortUrlNotFoundException) {
-            if ($extraPath === null || ! $this->urlShortenerOptions->multiSegmentSlugsEnabled) {
+            if ($extraPath === null || !$this->urlShortenerOptions->multiSegmentSlugsEnabled) {
                 return $handler->handle($request);
             }
 
@@ -88,7 +99,7 @@ class ExtraPathRedirectMiddleware implements MiddlewareInterface
     }
 
     /**
-     * @return array{0: string, 1: string|null}
+     * @return array{string, string|null}
      */
     private function resolvePotentialShortCodeAndExtraPath(UriInterface $uri, int $shortCodeSegments): array
     {

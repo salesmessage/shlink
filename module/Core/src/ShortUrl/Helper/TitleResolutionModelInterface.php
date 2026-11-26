@@ -6,11 +6,9 @@ namespace Shlinkio\Shlink\Core\ShortUrl\Helper;
 
 interface TitleResolutionModelInterface
 {
+    public string|null $longUrl { get; }
+
     public function hasTitle(): bool;
 
-    public function getLongUrl(): string;
-
-    public function doValidateUrl(): bool;
-
-    public function withResolvedTitle(string $title): self;
+    public function withResolvedTitle(string $title): static;
 }

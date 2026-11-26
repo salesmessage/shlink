@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\BotIp\Model;
 
-final class BotIpUpdateResult
+final readonly class BotIpUpdateResult
 {
+    /**
+     * @param string[] $failedSources
+     */
     private function __construct(
-        public readonly bool $updated,
-        public readonly int $added = 0,
-        public readonly int $refreshed = 0,
-        /** @var string[] */
-        public readonly array $failedSources = [],
-    ) {
-    }
+        public bool $updated,
+        public int $added = 0,
+        public int $refreshed = 0,
+        public array $failedSources = [],
+    ) {}
 
     public static function skipped(): self
     {
@@ -30,6 +31,6 @@ final class BotIpUpdateResult
 
     public function allSourcesFailed(): bool
     {
-        return $this->updated && $this->added === 0 && $this->refreshed === 0 && ! empty($this->failedSources);
+        return $this->updated && $this->added === 0 && $this->refreshed === 0 && $this->failedSources !== [];
     }
 }

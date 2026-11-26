@@ -7,6 +7,7 @@ namespace ShlinkioTest\Shlink\Rest\Action\Tag;
 use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\ServerRequestFactory;
 use Pagerfanta\Adapter\ArrayAdapter;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
@@ -21,7 +22,7 @@ use function count;
 class TagsStatsActionTest extends TestCase
 {
     private TagsStatsAction $action;
-    private MockObject & TagServiceInterface $tagService;
+    private MockObject&TagServiceInterface $tagService;
 
     protected function setUp(): void
     {
@@ -29,7 +30,7 @@ class TagsStatsActionTest extends TestCase
         $this->action = new TagsStatsAction($this->tagService);
     }
 
-    /** @test */
+    #[Test]
     public function returnsTagsStatsWhenRequested(): void
     {
         $stats = [
@@ -37,28 +38,35 @@ class TagsStatsActionTest extends TestCase
             new TagInfo('bar', 3, 10),
         ];
         $itemsCount = count($stats);
-        $this->tagService->expects($this->once())->method('tagsInfo')->with(
-            $this->anything(),
-            $this->isInstanceOf(ApiKey::class),
-        )->willReturn(new Paginator(new ArrayAdapter($stats)));
+        $this->tagService
+            ->expects($this->once())
+            ->method('tagsInfo')
+            ->with(
+                $this->anything(),
+                $this->isInstanceOf(ApiKey::class),
+            )
+            ->willReturn(new Paginator(new ArrayAdapter($stats)));
         $req = $this->requestWithApiKey()->withQueryParams(['withStats' => 'true']);
 
         /** @var JsonResponse $resp */
         $resp = $this->action->handle($req);
         $payload = $resp->getPayload();
 
-        self::assertEquals([
-            'tags' => [
-                'data' => $stats,
-                'pagination' => [
-                    'currentPage' => 1,
-                    'pagesCount' => 1,
-                    'itemsPerPage' => 10,
-                    'itemsInCurrentPage' => $itemsCount,
-                    'totalItems' => $itemsCount,
+        self::assertEquals(
+            [
+                'tags' => [
+                    'data' => $stats,
+                    'pagination' => [
+                        'currentPage' => 1,
+                        'pagesCount' => 1,
+                        'itemsPerPage' => 10,
+                        'itemsInCurrentPage' => $itemsCount,
+                        'totalItems' => $itemsCount,
+                    ],
                 ],
             ],
-        ], $payload);
+            $payload,
+        );
     }
 
     private function requestWithApiKey(): ServerRequestInterface

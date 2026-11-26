@@ -1,4 +1,4 @@
-version: '2.7'
+version: '3'
 
 rpc:
   listen: tcp://127.0.0.1:6001
@@ -7,18 +7,20 @@ server:
   command: 'php -dopcache.enable_cli=1 -dopcache.validate_timestamps=0 ../../bin/roadrunner-worker.php'
 
 http:
-  address: '0.0.0.0:${PORT}'
+  address: '${ADDRESS:-0.0.0.0}:${PORT:-8080}'
   middleware: ['static']
   static:
     dir: '../../public'
     forbid: ['.php', '.htaccess']
   pool:
-    num_workers: ${WEB_WORKER_NUM}
+    num_workers: ${WEB_WORKER_NUM:-0}
+    max_jobs: 250 # Restart worker after processing this amount of requests to mitigate memory leaks
 
 jobs:
   timeout: 300 # 5 minutes
   pool:
-    num_workers: ${TASK_WORKER_NUM}
+    num_workers: ${TASK_WORKER_NUM:-0}
+    max_jobs: 250 # Restart worker after processing this amount of jobs to mitigate memory leaks
   consume: ['shlink']
   pipelines:
     shlink:
@@ -28,9 +30,14 @@ jobs:
         prefetch: 10
 
 logs:
+  encoding: ${LOGS_FORMAT:-console}
   mode: production
   channels:
     http:
-      level: info # Log all http requests, set to info to disable
+      mode: 'off' # Disable logging as Shlink handles it internally
     server:
-      level: debug # Everything written to worker stderr is logged
+      encoding: ${LOGS_FORMAT:-console}
+      level: info
+    jobs:
+      encoding: ${LOGS_FORMAT:-console}
+      level: debug

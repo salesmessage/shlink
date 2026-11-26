@@ -11,13 +11,7 @@
                 "$ref": "../parameters/version.json"
             },
             {
-                "name": "shortCode",
-                "in": "path",
-                "description": "The short code to resolve.",
-                "required": true,
-                "schema": {
-                    "type": "string"
-                }
+                "$ref": "../parameters/shortCode.json"
             },
             {
                 "$ref": "../parameters/domain.json"
@@ -38,7 +32,7 @@
                         },
                         "example": {
                             "shortCode": "12Kb3",
-                            "shortUrl": "https://doma.in/12Kb3",
+                            "shortUrl": "https://s.test/12Kb3",
                             "longUrl": "https://shlink.io",
                             "dateCreated": "2016-05-01T20:34:16+02:00",
                             "visitsSummary": {
@@ -56,7 +50,9 @@
                             },
                             "domain": null,
                             "title": null,
-                            "crawlable": false
+                            "crawlable": false,
+                            "forwardQuery": true,
+                            "hasRedirectRules": true
                         }
                     }
                 }
@@ -87,11 +83,8 @@
                             ]
                         },
                         "examples": {
-                            "API v3 and newer": {
+                            "Short URL not found": {
                                 "$ref": "../examples/short-url-not-found-v3.json"
-                            },
-                            "Previous to API v3": {
-                                "$ref": "../examples/short-url-not-found-v2.json"
                             }
                         }
                     }
@@ -122,13 +115,7 @@
                 "$ref": "../parameters/version.json"
             },
             {
-                "name": "shortCode",
-                "in": "path",
-                "description": "The short code to edit.",
-                "required": true,
-                "schema": {
-                    "type": "string"
-                }
+                "$ref": "../parameters/shortCode.json"
             },
             {
                 "$ref": "../parameters/domain.json"
@@ -160,7 +147,7 @@
                         },
                         "example": {
                             "shortCode": "12Kb3",
-                            "shortUrl": "https://doma.in/12Kb3",
+                            "shortUrl": "https://s.test/12Kb3",
                             "longUrl": "https://shlink.io",
                             "dateCreated": "2016-05-01T20:34:16+02:00",
                             "visitsSummary": {
@@ -178,7 +165,9 @@
                             },
                             "domain": null,
                             "title": "Shlink - The URL shortener",
-                            "crawlable": false
+                            "crawlable": false,
+                            "forwardQuery": false,
+                            "hasRedirectRules": true
                         }
                     }
                 }
@@ -214,11 +203,8 @@
                             ]
                         },
                         "examples": {
-                            "API v3 and newer": {
+                            "Invalid arguments": {
                                 "$ref": "../examples/short-url-invalid-args-v3.json"
-                            },
-                            "Previous to API v3": {
-                                "$ref": "../examples/short-url-invalid-args-v2.json"
                             }
                         }
                     }
@@ -250,11 +236,8 @@
                             ]
                         },
                         "examples": {
-                            "API v3 and newer": {
+                            "Short URL not found": {
                                 "$ref": "../examples/short-url-not-found-v3.json"
-                            },
-                            "Previous to API v3": {
-                                "$ref": "../examples/short-url-not-found-v2.json"
                             }
                         }
                     }
@@ -285,13 +268,7 @@
                 "$ref": "../parameters/version.json"
             },
             {
-                "name": "shortCode",
-                "in": "path",
-                "description": "The short code to edit.",
-                "required": true,
-                "schema": {
-                    "type": "string"
-                }
+                "$ref": "../parameters/shortCode.json"
             },
             {
                 "$ref": "../parameters/domain.json"
@@ -386,11 +363,8 @@
                             ]
                         },
                         "examples": {
-                            "API v3 and newer": {
+                            "Short URL not found": {
                                 "$ref": "../examples/short-url-not-found-v3.json"
-                            },
-                            "Previous to API v3": {
-                                "$ref": "../examples/short-url-not-found-v2.json"
                             }
                         }
                     }

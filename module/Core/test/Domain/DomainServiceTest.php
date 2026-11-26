@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\Domain;
 
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Core\Config\EmptyNotFoundRedirectConfig;
 use Shlinkio\Shlink\Core\Config\NotFoundRedirects;
+use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\Domain\DomainService;
 use Shlinkio\Shlink\Core\Domain\Entity\Domain;
 use Shlinkio\Shlink\Core\Domain\Model\DomainItem;
@@ -21,30 +26,31 @@ use Shlinkio\Shlink\Rest\Entity\ApiKey;
 class DomainServiceTest extends TestCase
 {
     private DomainService $domainService;
-    private MockObject & EntityManagerInterface $em;
+    private Stub&EntityManagerInterface $em;
+    private MockObject&DomainRepositoryInterface $repo;
 
     protected function setUp(): void
     {
-        $this->em = $this->createMock(EntityManagerInterface::class);
-        $this->domainService = new DomainService($this->em, 'default.com');
+        $this->em = $this->createStub(EntityManagerInterface::class);
+        $this->repo = $this->createMock(DomainRepositoryInterface::class);
+        $this->domainService = new DomainService(
+            $this->em,
+            new UrlShortenerOptions(defaultDomain: 'default.com'),
+            $this->repo,
+        );
     }
 
-    /**
-     * @test
-     * @dataProvider provideExcludedDomains
-     */
-    public function listDomainsDelegatesIntoRepository(array $domains, array $expectedResult, ?ApiKey $apiKey): void
+    #[Test, DataProvider('provideExcludedDomains')]
+    public function listDomainsDelegatesIntoRepository(array $domains, array $expectedResult, ApiKey|null $apiKey): void
     {
-        $repo = $this->createMock(DomainRepositoryInterface::class);
-        $repo->expects($this->once())->method('findDomains')->with($apiKey)->willReturn($domains);
-        $this->em->expects($this->once())->method('getRepository')->with(Domain::class)->willReturn($repo);
+        $this->repo->expects($this->once())->method('findDomains')->with($apiKey)->willReturn($domains);
 
         $result = $this->domainService->listDomains($apiKey);
 
         self::assertEquals($expectedResult, $result);
     }
 
-    public function provideExcludedDomains(): iterable
+    public static function provideExcludedDomains(): iterable
     {
         $default = DomainItem::forDefaultDomain('default.com', new EmptyNotFoundRedirectConfig());
         $adminApiKey = ApiKey::create();
@@ -102,41 +108,38 @@ class DomainServiceTest extends TestCase
         ];
     }
 
-    /** @test */
+    #[Test, AllowMockObjectsWithoutExpectations]
     public function getDomainThrowsExceptionWhenDomainIsNotFound(): void
     {
-        $this->em->expects($this->once())->method('find')->with(Domain::class, '123')->willReturn(null);
+        $this->em->method('find')->willReturnMap([[Domain::class, '123', null]]);
 
         $this->expectException(DomainNotFoundException::class);
 
         $this->domainService->getDomain('123');
     }
 
-    /** @test */
+    #[Test, AllowMockObjectsWithoutExpectations]
     public function getDomainReturnsEntityWhenFound(): void
     {
         $domain = Domain::withAuthority('');
-        $this->em->expects($this->once())->method('find')->with(Domain::class, '123')->willReturn($domain);
+        $this->em->method('find')->willReturnMap([[Domain::class, '123', $domain]]);
 
         $result = $this->domainService->getDomain('123');
 
         self::assertSame($domain, $result);
     }
 
-    /**
-     * @test
-     * @dataProvider provideFoundDomains
-     */
-    public function getOrCreateAlwaysPersistsDomain(?Domain $foundDomain, ?ApiKey $apiKey): void
+    #[Test, DataProvider('provideFoundDomains')]
+    public function getOrCreateAlwaysPersistsDomain(Domain|null $foundDomain, ApiKey|null $apiKey): void
     {
         $authority = 'example.com';
-        $repo = $this->createMock(DomainRepositoryInterface::class);
-        $repo->method('findOneByAuthority')->with($authority, $apiKey)->willReturn(
-            $foundDomain,
-        );
-        $this->em->expects($this->once())->method('getRepository')->with(Domain::class)->willReturn($repo);
-        $this->em->expects($this->once())->method('persist')->with($foundDomain ?? $this->isInstanceOf(Domain::class));
-        $this->em->expects($this->once())->method('flush');
+        $this->repo
+            ->expects($this->once())
+            ->method('findOneByAuthority')
+            ->with($authority, $apiKey)
+            ->willReturn(
+                $foundDomain,
+            );
 
         $result = $this->domainService->getOrCreate($authority, $apiKey);
 
@@ -145,52 +148,53 @@ class DomainServiceTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function getOrCreateThrowsExceptionForApiKeysWithDomainRole(): void
     {
         $authority = 'example.com';
         $domain = Domain::withAuthority($authority);
         $domain->setId('1');
         $apiKey = ApiKey::fromMeta(ApiKeyMeta::withRoles(RoleDefinition::forDomain($domain)));
-        $repo = $this->createMock(DomainRepositoryInterface::class);
-        $repo->method('findOneByAuthority')->with($authority, $apiKey)->willReturn(null);
-        $this->em->expects($this->once())->method('getRepository')->with(Domain::class)->willReturn($repo);
-        $this->em->expects($this->never())->method('persist');
-        $this->em->expects($this->never())->method('flush');
+        $this->repo->expects($this->once())->method('findOneByAuthority')->with($authority, $apiKey)->willReturn(null);
 
         $this->expectException(DomainNotFoundException::class);
 
         $this->domainService->getOrCreate($authority, $apiKey);
     }
 
-    /**
-     * @test
-     * @dataProvider provideFoundDomains
-     */
-    public function configureNotFoundRedirectsConfiguresFetchedDomain(?Domain $foundDomain, ?ApiKey $apiKey): void
-    {
+    #[Test, DataProvider('provideFoundDomains')]
+    public function configureNotFoundRedirectsConfiguresFetchedDomain(
+        Domain|null $foundDomain,
+        ApiKey|null $apiKey,
+    ): void {
         $authority = 'example.com';
-        $repo = $this->createMock(DomainRepositoryInterface::class);
-        $repo->method('findOneByAuthority')->with($authority, $apiKey)->willReturn($foundDomain);
-        $this->em->expects($this->once())->method('getRepository')->with(Domain::class)->willReturn($repo);
-        $this->em->expects($this->once())->method('persist')->with($foundDomain ?? $this->isInstanceOf(Domain::class));
-        $this->em->expects($this->once())->method('flush');
+        $this->repo
+            ->expects($this->once())
+            ->method('findOneByAuthority')
+            ->with($authority, $apiKey)
+            ->willReturn(
+                $foundDomain,
+            );
 
-        $result = $this->domainService->configureNotFoundRedirects($authority, NotFoundRedirects::withRedirects(
-            'foo.com',
-            'bar.com',
-            'baz.com',
-        ), $apiKey);
+        $result = $this->domainService->configureNotFoundRedirects(
+            $authority,
+            NotFoundRedirects::withRedirects(
+                'foo.com',
+                'bar.com',
+                'baz.com',
+            ),
+            $apiKey,
+        );
 
         if ($foundDomain !== null) {
             self::assertSame($result, $foundDomain);
         }
-        self::assertEquals('foo.com', $result->baseUrlRedirect());
-        self::assertEquals('bar.com', $result->regular404Redirect());
-        self::assertEquals('baz.com', $result->invalidShortUrlRedirect());
+        self::assertEquals('foo.com', $result->baseUrlRedirect);
+        self::assertEquals('bar.com', $result->regular404Redirect);
+        self::assertEquals('baz.com', $result->invalidShortUrlRedirect);
     }
 
-    public function provideFoundDomains(): iterable
+    public static function provideFoundDomains(): iterable
     {
         $domain = Domain::withAuthority('');
         $adminApiKey = ApiKey::create();

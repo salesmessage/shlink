@@ -5,35 +5,40 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\CLI\Command\Visit;
 
 use Cake\Chronos\Chronos;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Visit\ReclassifyBotVisitsCommand;
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
 use Shlinkio\Shlink\Core\BotIp\Model\ReclassificationResult;
-use Shlinkio\Shlink\Core\BotIp\VisitBotReclassifier;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use Shlinkio\Shlink\Core\BotIp\VisitBotReclassifierInterface;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Lock;
 
+#[AllowMockObjectsWithoutExpectations]
 class ReclassifyBotVisitsCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & VisitBotReclassifier $reclassifier;
-    private MockObject & Lock\SharedLockInterface $lock;
+    private MockObject&VisitBotReclassifierInterface $reclassifier;
+    private Stub&Lock\SharedLockInterface $lock;
 
     protected function setUp(): void
     {
-        $this->reclassifier = $this->createMock(VisitBotReclassifier::class);
-        $this->lock = $this->createMock(Lock\SharedLockInterface::class);
-        $locker = $this->createMock(Lock\LockFactory::class);
-        $locker->method('createLock')->with('visit:reclassify-bots', 600.0, false)->willReturn($this->lock);
+        $this->reclassifier = $this->createMock(VisitBotReclassifierInterface::class);
+        $this->lock = $this->createStub(Lock\SharedLockInterface::class);
+        $locker = $this->createStub(Lock\LockFactory::class);
+        $locker->method('createLock')->willReturn($this->lock);
 
-        $this->commandTester = $this->testerForCommand(new ReclassifyBotVisitsCommand($this->reclassifier, $locker));
+        $this->commandTester = CliTestUtils::testerForCommand(
+            new ReclassifyBotVisitsCommand($this->reclassifier, $locker),
+        );
     }
 
-    /** @test */
+    #[Test]
     public function optionsArePassedAndCountsShown(): void
     {
         $result = new ReclassificationResult();
@@ -42,13 +47,17 @@ class ReclassifyBotVisitsCommandTest extends TestCase
         $result->byGoogleNetwork = 20;
         $result->lastId = 1234;
         $this->lock->method('acquire')->willReturn(true);
-        $this->reclassifier->expects($this->once())->method('reclassify')->with(
-            Chronos::create(2026, 9, 22, 0, 0, 0),
-            100,
-            500,
-            true,
-            $this->isType('callable'),
-        )->willReturn($result);
+        $this->reclassifier
+            ->expects($this->once())
+            ->method('reclassify')
+            ->with(
+                Chronos::create(2026, 9, 22, 0, 0, 0),
+                100,
+                500,
+                true,
+                $this->isCallable(),
+            )
+            ->willReturn($result);
 
         $this->commandTester->execute([
             '--since' => '2026-09-22',
@@ -58,17 +67,14 @@ class ReclassifyBotVisitsCommandTest extends TestCase
         ]);
         $output = $this->commandTester->getDisplay();
 
-        self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::SUCCESS, $this->commandTester->getStatusCode());
         self::assertStringContainsString('Google network', $output);
         self::assertStringContainsString('21', $output);
         self::assertStringContainsString('Dry run, nothing was changed.', $output);
         self::assertStringContainsString('Last visit id: 1234', $output);
     }
 
-    /**
-     * @test
-     * @dataProvider provideInvalidOptions
-     */
+    #[Test, DataProvider('provideInvalidOptions')]
     public function invalidOptionsAreRejected(array $options): void
     {
         $this->lock->method('acquire')->willReturn(true);
@@ -76,10 +82,10 @@ class ReclassifyBotVisitsCommandTest extends TestCase
 
         $this->commandTester->execute($options);
 
-        self::assertEquals(ExitCodes::EXIT_FAILURE, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::FAILURE, $this->commandTester->getStatusCode());
     }
 
-    public function provideInvalidOptions(): iterable
+    public static function provideInvalidOptions(): iterable
     {
         yield 'no since' => [[]];
         yield 'bad since' => [['--since' => 'yesterday']];
@@ -87,7 +93,7 @@ class ReclassifyBotVisitsCommandTest extends TestCase
         yield 'zero batch' => [['--since' => '2026-09-22', '--batch-size' => '0']];
     }
 
-    /** @test */
+    #[Test]
     public function nothingRunsWhileAnotherRunHoldsTheLock(): void
     {
         $this->lock->method('acquire')->willReturn(false);
@@ -95,6 +101,6 @@ class ReclassifyBotVisitsCommandTest extends TestCase
 
         $this->commandTester->execute(['--since' => '2026-09-22']);
 
-        self::assertEquals(ExitCodes::EXIT_WARNING, $this->commandTester->getStatusCode());
+        self::assertEquals(Command::INVALID, $this->commandTester->getStatusCode());
     }
 }

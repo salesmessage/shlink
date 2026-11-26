@@ -8,16 +8,15 @@ use Doctrine\ORM\EntityManagerInterface;
 use Shlinkio\Shlink\Core\Exception\IpCannotBeLocatedException;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Shlinkio\Shlink\Core\Visit\Entity\VisitLocation;
-use Shlinkio\Shlink\Core\Visit\Repository\VisitLocationRepositoryInterface;
+use Shlinkio\Shlink\Core\Visit\Repository\VisitIterationRepositoryInterface;
 use Shlinkio\Shlink\IpGeolocation\Model\Location;
 
-class VisitLocator implements VisitLocatorInterface
+readonly class VisitLocator implements VisitLocatorInterface
 {
     public function __construct(
-        private readonly EntityManagerInterface $em,
-        private readonly VisitLocationRepositoryInterface $repo,
-    ) {
-    }
+        private EntityManagerInterface $em,
+        private VisitIterationRepositoryInterface $repo,
+    ) {}
 
     public function locateUnlocatedVisits(VisitGeolocationHelperInterface $helper): void
     {
@@ -48,19 +47,19 @@ class VisitLocator implements VisitLocatorInterface
             try {
                 $location = $helper->geolocateVisit($visit);
             } catch (IpCannotBeLocatedException $e) {
-                if (! $e->isNonLocatableAddress()) {
+                if (!$e->isNonLocatableAddress()) {
                     // Skip if the visit's IP could not be located because of an error
                     continue;
                 }
 
                 // If the IP address is non-locatable, locate it as empty to prevent next processes to pick it again
-                $location = Location::emptyInstance();
+                $location = Location::empty();
             }
 
-            $this->locateVisit($visit, VisitLocation::fromGeolocation($location), $helper);
+            $this->locateVisit($visit, VisitLocation::fromLocation($location), $helper);
 
             // Flush and clear after X iterations
-            if ($count % $persistBlock === 0) {
+            if (($count % $persistBlock) === 0) {
                 $this->em->flush();
                 $this->em->clear();
             }
@@ -72,7 +71,7 @@ class VisitLocator implements VisitLocatorInterface
 
     private function locateVisit(Visit $visit, VisitLocation $location, VisitGeolocationHelperInterface $helper): void
     {
-        $prevLocation = $visit->getVisitLocation();
+        $prevLocation = $visit->visitLocation;
 
         $visit->locate($location);
         $this->em->persist($visit);

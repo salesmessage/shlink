@@ -55,6 +55,20 @@
                     "type": "string",
                     "enum": ["true"]
                 }
+            },
+            {
+                "name": "type",
+                "in": "query",
+                "description": "The type of visits to return. All visits are returned when not provided.",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": ["invalid_short_url", "base_url", "regular_404"]
+                }
+            },
+            {
+                "$ref": "../parameters/domain.json",
+                "description": "Return only visits for this domain. Use **DEFAULT** keyword to return visits from default domain."
             }
         ],
         "security": [
@@ -95,7 +109,7 @@
                                         "userAgent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0 Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:42.0) Gecko/20100101 Firefox/42.0",
                                         "visitLocation": null,
                                         "potentialBot": false,
-                                        "visitedUrl": "https://doma.in",
+                                        "visitedUrl": "https://s.test",
                                         "type": "base_url"
                                     },
                                     {
@@ -112,7 +126,7 @@
                                             "timezone": "America/Los_Angeles"
                                         },
                                         "potentialBot": false,
-                                        "visitedUrl": "https://doma.in/foo",
+                                        "visitedUrl": "https://s.test/foo",
                                         "type": "invalid_short_url"
                                     },
                                     {
@@ -121,7 +135,7 @@
                                         "userAgent": "some_web_crawler/1.4",
                                         "visitLocation": null,
                                         "potentialBot": true,
-                                        "visitedUrl": "https://doma.in/foo/bar/baz",
+                                        "visitedUrl": "https://s.test/foo/bar/baz",
                                         "type": "regular_404"
                                     }
                                 ],
@@ -133,6 +147,104 @@
                                     "totalItems": 115
                                 }
                             }
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Provided query arguments are invalid.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "type": "object",
+                            "allOf": [
+                                {
+                                    "$ref": "../definitions/Error.json"
+                                },
+                                {
+                                    "type": "object",
+                                    "required": ["invalidElements"],
+                                    "properties": {
+                                        "invalidElements": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string",
+                                                "enum": ["type"]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "examples": {
+                            "API v3 and newer": {
+                                "value": {
+                                    "title": "Invalid data",
+                                    "type": "https://shlink.io/api/error/invalid-data",
+                                    "detail": "Provided data is not valid",
+                                    "status": 400,
+                                    "invalidElements": ["type"]
+                                }
+                            },
+                            "Previous to API v3": {
+                                "value": {
+                                    "title": "Invalid data",
+                                    "type": "INVALID_ARGUMENT",
+                                    "detail": "Provided data is not valid",
+                                    "status": 400,
+                                    "invalidElements": ["type"]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "default": {
+                "description": "Unexpected error.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "../definitions/Error.json"
+                        }
+                    }
+                }
+            }
+        }
+    },
+
+    "delete": {
+        "operationId": "deleteOrphanVisits",
+        "tags": [
+            "Visits"
+        ],
+        "summary": "Delete orphan visits",
+        "description": "Delete all visits to invalid short URLs, the base URL or any other 404.",
+        "parameters": [
+            {
+                "$ref": "../parameters/version.json"
+            }
+        ],
+        "security": [
+            {
+                "ApiKey": []
+            }
+        ],
+        "responses": {
+            "200": {
+                "description": "Deleted visits",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "deletedVisits": {
+                                    "description": "Amount of affected visits",
+                                    "type": "number"
+                                }
+                            }
+                        },
+                        "example": {
+                            "deletedVisits": 536
                         }
                     }
                 }

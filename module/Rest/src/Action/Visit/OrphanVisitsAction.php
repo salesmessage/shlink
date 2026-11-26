@@ -4,35 +4,18 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Rest\Action\Visit;
 
-use Laminas\Diactoros\Response\JsonResponse;
-use Psr\Http\Message\ResponseInterface;
+use Pagerfanta\Pagerfanta;
 use Psr\Http\Message\ServerRequestInterface;
-use Shlinkio\Shlink\Common\Paginator\Util\PagerfantaUtilsTrait;
-use Shlinkio\Shlink\Common\Rest\DataTransformerInterface;
-use Shlinkio\Shlink\Core\Visit\Model\VisitsParams;
-use Shlinkio\Shlink\Core\Visit\VisitsStatsHelperInterface;
-use Shlinkio\Shlink\Rest\Action\AbstractRestAction;
+use Shlinkio\Shlink\Core\Visit\Model\OrphanVisitsParams;
+use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
-class OrphanVisitsAction extends AbstractRestAction
+class OrphanVisitsAction extends AbstractListVisitsAction
 {
-    use PagerfantaUtilsTrait;
+    protected const string ROUTE_PATH = '/visits/orphan';
 
-    protected const ROUTE_PATH = '/visits/orphan';
-    protected const ROUTE_ALLOWED_METHODS = [self::METHOD_GET];
-
-    public function __construct(
-        private VisitsStatsHelperInterface $visitsHelper,
-        private DataTransformerInterface $orphanVisitTransformer,
-    ) {
-    }
-
-    public function handle(ServerRequestInterface $request): ResponseInterface
+    protected function getVisitsPaginator(ServerRequestInterface $request, ApiKey $apiKey): Pagerfanta
     {
-        $params = VisitsParams::fromRawData($request->getQueryParams());
-        $visits = $this->visitsHelper->orphanVisits($params);
-
-        return new JsonResponse([
-            'visits' => $this->serializePaginator($visits, $this->orphanVisitTransformer),
-        ]);
+        $orphanParams = OrphanVisitsParams::fromRawData($request->getQueryParams());
+        return $this->visitsHelper->orphanVisits($orphanParams, $apiKey);
     }
 }

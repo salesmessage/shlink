@@ -4,43 +4,36 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\CLI\Command\Domain;
 
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
 use Shlinkio\Shlink\Core\Config\NotFoundRedirects;
 use Shlinkio\Shlink\Core\Domain\DomainServiceInterface;
 use Shlinkio\Shlink\Core\Domain\Model\DomainItem;
+use Symfony\Component\Console\Attribute\Argument;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Attribute\Interact;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function Functional\filter;
-use function Functional\invoke;
+use function array_filter;
+use function array_map;
 use function sprintf;
 use function str_contains;
 
+#[AsCommand(
+    name: DomainRedirectsCommand::NAME,
+    description: 'Set specific "not found" redirects for individual domains.',
+)]
 class DomainRedirectsCommand extends Command
 {
-    public const NAME = 'domain:redirects';
+    public const string NAME = 'domain:redirects';
 
-    public function __construct(private DomainServiceInterface $domainService)
+    public function __construct(private readonly DomainServiceInterface $domainService)
     {
         parent::__construct();
     }
 
-    protected function configure(): void
-    {
-        $this
-            ->setName(self::NAME)
-            ->setDescription('Set specific "not found" redirects for individual domains.')
-            ->addArgument(
-                'domain',
-                InputArgument::REQUIRED,
-                'The domain authority to which you want to set the specific redirects',
-            );
-    }
-
-    protected function interact(InputInterface $input, OutputInterface $output): void
+    #[Interact]
+    public function askDomain(InputInterface $input, SymfonyStyle $io): void
     {
         /** @var string|null $domain */
         $domain = $input->getArgument('domain');
@@ -48,13 +41,12 @@ class DomainRedirectsCommand extends Command
             return;
         }
 
-        $io = new SymfonyStyle($input, $output);
         $askNewDomain = static fn () => $io->ask('Domain authority for which you want to set specific redirects');
 
         /** @var string[] $availableDomains */
-        $availableDomains = invoke(
-            filter($this->domainService->listDomains(), static fn (DomainItem $item) => ! $item->isDefault),
-            'toString',
+        $availableDomains = array_map(
+            static fn (DomainItem $item) => $item->toString(),
+            array_filter($this->domainService->listDomains(), static fn (DomainItem $item) => !$item->isDefault),
         );
         if (empty($availableDomains)) {
             $input->setArgument('domain', $askNewDomain());
@@ -68,13 +60,14 @@ class DomainRedirectsCommand extends Command
         $input->setArgument('domain', str_contains($selectedOption, 'New domain') ? $askNewDomain() : $selectedOption);
     }
 
-    protected function execute(InputInterface $input, OutputInterface $output): ?int
-    {
-        $io = new SymfonyStyle($input, $output);
-        $domainAuthority = $input->getArgument('domain');
+    public function __invoke(
+        SymfonyStyle $io,
+        #[Argument('The domain authority to which you want to set the specific redirects', name: 'domain')]
+        string $domainAuthority,
+    ): int {
         $domain = $this->domainService->findByAuthority($domainAuthority);
 
-        $ask = static function (string $message, ?string $current) use ($io): ?string {
+        $ask = static function (string $message, string|null $current) use ($io): string|null {
             if ($current === null) {
                 return $io->ask(sprintf('%s (Leave empty for no redirect)', $message));
             }
@@ -95,20 +88,20 @@ class DomainRedirectsCommand extends Command
         $this->domainService->configureNotFoundRedirects($domainAuthority, NotFoundRedirects::withRedirects(
             $ask(
                 'URL to redirect to when a user hits this domain\'s base URL',
-                $domain?->baseUrlRedirect(),
+                $domain?->baseUrlRedirect,
             ),
             $ask(
                 'URL to redirect to when a user hits a not found URL other than an invalid short URL',
-                $domain?->regular404Redirect(),
+                $domain?->regular404Redirect,
             ),
             $ask(
                 'URL to redirect to when a user hits an invalid short URL',
-                $domain?->invalidShortUrlRedirect(),
+                $domain?->invalidShortUrlRedirect,
             ),
         ));
 
         $io->success(sprintf('"Not found" redirects properly set for "%s"', $domainAuthority));
 
-        return ExitCodes::EXIT_SUCCESS;
+        return self::SUCCESS;
     }
 }

@@ -14,19 +14,17 @@ use Shlinkio\Shlink\Rest\Middleware\AuthenticationMiddleware;
 
 class DeleteShortUrlAction extends AbstractRestAction
 {
-    protected const ROUTE_PATH = '/short-urls/{shortCode}';
-    protected const ROUTE_ALLOWED_METHODS = [self::METHOD_DELETE];
+    protected const string ROUTE_PATH = '/short-urls/{shortCode}';
+    protected const array ROUTE_ALLOWED_METHODS = [self::METHOD_DELETE];
 
-    public function __construct(private DeleteShortUrlServiceInterface $deleteShortUrlService)
-    {
-    }
+    public function __construct(private readonly DeleteShortUrlServiceInterface $deleteShortUrlService) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $identifier = ShortUrlIdentifier::fromApiRequest($request);
         $apiKey = AuthenticationMiddleware::apiKeyFromRequest($request);
 
-        $this->deleteShortUrlService->deleteByShortCode($identifier, false, $apiKey);
+        $this->deleteShortUrlService->deleteByShortCode($identifier, apiKey: $apiKey);
 
         return new EmptyResponse();
     }

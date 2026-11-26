@@ -7,19 +7,20 @@ namespace Shlinkio\Shlink;
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use Mezzio\ProblemDetails;
 use Mezzio\Router;
-use PhpMiddleware\RequestId\RequestIdMiddleware;
 use RKA\Middleware\IpAddress;
+use Shlinkio\Shlink\Common\Middleware\AccessLogMiddleware;
 use Shlinkio\Shlink\Common\Middleware\ContentLengthMiddleware;
+use Shlinkio\Shlink\Common\Middleware\RequestIdMiddleware;
+use Shlinkio\Shlink\Core\Geolocation\Middleware\IpGeolocationMiddleware;
 
 return [
-
     'middleware_pipeline' => [
         'error-handler' => [
             'middleware' => [
+                AccessLogMiddleware::class,
                 ContentLengthMiddleware::class,
                 RequestIdMiddleware::class,
                 ErrorHandler::class,
-                Core\ErrorHandler\VendorDeprecationsMiddleware::class,
                 Rest\Middleware\CrossDomainMiddleware::class,
             ],
         ],
@@ -32,6 +33,7 @@ return [
 
         'pre-routing' => [
             'middleware' => [
+                Core\ObjectMapper\MapValidationMiddleware::class,
                 Common\Middleware\CloseDbConnectionMiddleware::class,
             ],
         ],
@@ -46,7 +48,6 @@ return [
         'rest' => [
             'path' => '/rest',
             'middleware' => [
-                Rest\Middleware\ErrorHandler\BackwardsCompatibleProblemDetailsHandler::class,
                 Router\Middleware\ImplicitOptionsMiddleware::class,
                 Rest\Middleware\BodyParserMiddleware::class,
                 Rest\Middleware\AuthenticationMiddleware::class,
@@ -67,8 +68,11 @@ return [
         ],
         'not-found' => [
             'middleware' => [
-                // This middleware is in front of tracking actions explicitly. Putting here for orphan visits tracking
+                // These two middlewares are in front of other tracking actions.
+                // Putting them here for orphan visits tracking
                 IpAddress::class,
+                IpGeolocationMiddleware::class,
+
                 Core\ErrorHandler\NotFoundTypeResolverMiddleware::class,
                 Core\ShortUrl\Middleware\ExtraPathRedirectMiddleware::class,
                 Core\ErrorHandler\NotFoundTrackerMiddleware::class,
@@ -77,5 +81,4 @@ return [
             ],
         ],
     ],
-
 ];

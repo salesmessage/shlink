@@ -9,33 +9,38 @@ use Laminas\Diactoros\ServerRequestFactory;
 use Laminas\Diactoros\Uri;
 use Mezzio\Router\Route;
 use Mezzio\Router\RouteResult;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UriInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Log\NullLogger;
+use Psr\Log\LoggerInterface;
 use Shlinkio\Shlink\Core\Action\RedirectAction;
 use Shlinkio\Shlink\Core\Config\NotFoundRedirectResolver;
+use Shlinkio\Shlink\Core\Config\Options\NotFoundRedirectOptions;
 use Shlinkio\Shlink\Core\ErrorHandler\Model\NotFoundType;
-use Shlinkio\Shlink\Core\Options\NotFoundRedirectOptions;
 use Shlinkio\Shlink\Core\Util\RedirectResponseHelperInterface;
 
+use function Laminas\Stratigility\middleware;
+
+#[AllowMockObjectsWithoutExpectations]
 class NotFoundRedirectResolverTest extends TestCase
 {
     private NotFoundRedirectResolver $resolver;
-    private MockObject & RedirectResponseHelperInterface $helper;
+    private MockObject&RedirectResponseHelperInterface $helper;
+    private MockObject&LoggerInterface $logger;
 
     protected function setUp(): void
     {
         $this->helper = $this->createMock(RedirectResponseHelperInterface::class);
-        $this->resolver = new NotFoundRedirectResolver($this->helper, new NullLogger());
+        $this->logger = $this->createMock(LoggerInterface::class);
+
+        $this->resolver = new NotFoundRedirectResolver($this->helper, $this->logger);
     }
 
-    /**
-     * @test
-     * @dataProvider provideRedirects
-     */
+    #[Test, DataProvider('provideRedirects')]
     public function expectedRedirectionIsReturnedDependingOnTheCase(
         UriInterface $uri,
         NotFoundType $notFoundType,
@@ -43,79 +48,83 @@ class NotFoundRedirectResolverTest extends TestCase
         string $expectedRedirectTo,
     ): void {
         $expectedResp = new Response();
-        $this->helper->expects($this->once())->method('buildRedirectResponse')->with($expectedRedirectTo)->willReturn(
-            $expectedResp,
-        );
+        $this->helper
+            ->expects($this->once())
+            ->method('buildRedirectResponse')
+            ->with($expectedRedirectTo)
+            ->willReturn(
+                $expectedResp,
+            );
 
         $resp = $this->resolver->resolveRedirectResponse($notFoundType, $redirectConfig, $uri);
 
         self::assertSame($expectedResp, $resp);
     }
 
-    public function provideRedirects(): iterable
+    public static function provideRedirects(): iterable
     {
         yield 'base URL with trailing slash' => [
             $uri = new Uri('/'),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
-            new NotFoundRedirectOptions(baseUrl: 'baseUrl'),
-            'baseUrl',
-        ];
-        yield 'base URL with domain placeholder' => [
-            $uri = new Uri('https://doma.in'),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
-            new NotFoundRedirectOptions(baseUrl: 'https://redirect-here.com/{DOMAIN}'),
-            'https://redirect-here.com/doma.in',
-        ];
-        yield 'base URL with domain placeholder in query' => [
-            $uri = new Uri('https://doma.in'),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
-            new NotFoundRedirectOptions(baseUrl: 'https://redirect-here.com/?domain={DOMAIN}'),
-            'https://redirect-here.com/?domain=doma.in',
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(baseUrlRedirect: 'https://example.com/baseUrl'),
+            'https://example.com/baseUrl',
         ];
         yield 'base URL without trailing slash' => [
             $uri = new Uri(''),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
-            new NotFoundRedirectOptions(baseUrl: 'baseUrl'),
-            'baseUrl',
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(baseUrlRedirect: 'https://example.com/baseUrl'),
+            'https://example.com/baseUrl',
+        ];
+        yield 'base URL with domain placeholder' => [
+            $uri = new Uri('https://s.test'),
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(baseUrlRedirect: 'https://redirect-here.com/{DOMAIN}'),
+            'https://redirect-here.com/s.test',
+        ];
+        yield 'base URL with domain placeholder in query' => [
+            $uri = new Uri('https://s.test'),
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(baseUrlRedirect: 'https://redirect-here.com/?domain={DOMAIN}'),
+            'https://redirect-here.com/?domain=s.test',
         ];
         yield 'regular 404' => [
             $uri = new Uri('/foo/bar'),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
-            new NotFoundRedirectOptions(regular404: 'regular404'),
-            'regular404',
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(regular404Redirect: 'https://example.com/regular404'),
+            'https://example.com/regular404',
         ];
         yield 'regular 404 with path placeholder in query' => [
             $uri = new Uri('/foo/bar'),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
-            new NotFoundRedirectOptions(regular404: 'https://redirect-here.com/?path={ORIGINAL_PATH}'),
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(regular404Redirect: 'https://redirect-here.com/?path={ORIGINAL_PATH}'),
             'https://redirect-here.com/?path=%2Ffoo%2Fbar',
         ];
         yield 'regular 404 with multiple placeholders' => [
-            $uri = new Uri('https://doma.in/foo/bar'),
-            $this->notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            $uri = new Uri('https://s.test/foo/bar'),
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
             new NotFoundRedirectOptions(
-                regular404: 'https://redirect-here.com/{ORIGINAL_PATH}/{DOMAIN}/?d={DOMAIN}&p={ORIGINAL_PATH}',
+                regular404Redirect: 'https://redirect-here.com/{ORIGINAL_PATH}/{DOMAIN}/?d={DOMAIN}&p={ORIGINAL_PATH}',
             ),
-            'https://redirect-here.com/foo/bar/doma.in/?d=doma.in&p=%2Ffoo%2Fbar',
+            'https://redirect-here.com/foo/bar/s.test/?d=s.test&p=%2Ffoo%2Fbar',
         ];
         yield 'invalid short URL' => [
             new Uri('/foo'),
-            $this->notFoundType($this->requestForRoute(RedirectAction::class)),
-            new NotFoundRedirectOptions(invalidShortUrl: 'invalidShortUrl'),
-            'invalidShortUrl',
+            self::notFoundType(self::requestForRoute(RedirectAction::class)),
+            new NotFoundRedirectOptions(invalidShortUrlRedirect: 'https://example.com/invalidShortUrl'),
+            'https://example.com/invalidShortUrl',
         ];
         yield 'invalid short URL with path placeholder' => [
             new Uri('/foo'),
-            $this->notFoundType($this->requestForRoute(RedirectAction::class)),
-            new NotFoundRedirectOptions(invalidShortUrl: 'https://redirect-here.com/{ORIGINAL_PATH}'),
+            self::notFoundType(self::requestForRoute(RedirectAction::class)),
+            new NotFoundRedirectOptions(invalidShortUrlRedirect: 'https://redirect-here.com/{ORIGINAL_PATH}'),
             'https://redirect-here.com/foo',
         ];
     }
 
-    /** @test */
+    #[Test]
     public function noResponseIsReturnedIfNoConditionsMatch(): void
     {
-        $notFoundType = $this->notFoundType($this->requestForRoute('foo'));
+        $notFoundType = self::notFoundType(self::requestForRoute('foo'));
         $this->helper->expects($this->never())->method('buildRedirectResponse');
 
         $result = $this->resolver->resolveRedirectResponse($notFoundType, new NotFoundRedirectOptions(), new Uri());
@@ -123,12 +132,31 @@ class NotFoundRedirectResolverTest extends TestCase
         self::assertNull($result);
     }
 
-    private function notFoundType(ServerRequestInterface $req): NotFoundType
+    #[Test]
+    public function warningMessageIsLoggedIfRedirectUrlIsMalformed(): void
+    {
+        $this->logger
+            ->expects($this->once())
+            ->method('warning')
+            ->with(
+                'It was not possible to parse "{url}" as a valid URL: {e}',
+                $this->isArray(),
+            );
+
+        $uri = new Uri('/');
+        $this->resolver->resolveRedirectResponse(
+            self::notFoundType(ServerRequestFactory::fromGlobals()->withUri($uri)),
+            new NotFoundRedirectOptions(baseUrlRedirect: 'http:///example.com'),
+            $uri,
+        );
+    }
+
+    private static function notFoundType(ServerRequestInterface $req): NotFoundType
     {
         return NotFoundType::fromRequest($req, '');
     }
 
-    private function requestForRoute(string $routeName): ServerRequestInterface
+    private static function requestForRoute(string $routeName): ServerRequestInterface
     {
         return ServerRequestFactory::fromGlobals()
             ->withAttribute(
@@ -136,7 +164,7 @@ class NotFoundRedirectResolverTest extends TestCase
                 RouteResult::fromRoute(
                     new Route(
                         'foo',
-                        $this->createMock(MiddlewareInterface::class),
+                        middleware(static function (): void {}),
                         ['GET'],
                         $routeName,
                     ),

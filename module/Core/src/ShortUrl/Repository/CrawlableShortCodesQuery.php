@@ -7,6 +7,7 @@ namespace Shlinkio\Shlink\Core\ShortUrl\Repository;
 use Happyr\DoctrineSpecification\Repository\EntitySpecificationRepository;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 
+/** @extends EntitySpecificationRepository<ShortUrl> */
 class CrawlableShortCodesQuery extends EntitySpecificationRepository implements CrawlableShortCodesQueryInterface
 {
     /**
@@ -16,11 +17,13 @@ class CrawlableShortCodesQuery extends EntitySpecificationRepository implements 
     {
         $blockSize = 1000;
         $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->select('DISTINCT s.shortCode')
-           ->from(ShortUrl::class, 's')
-           ->where($qb->expr()->eq('s.crawlable', ':crawlable'))
-           ->setParameter('crawlable', true)
-           ->setMaxResults($blockSize);
+        $qb
+            ->select('DISTINCT s.shortCode')
+            ->from(ShortUrl::class, 's')
+            ->where($qb->expr()->eq('s.crawlable', ':crawlable'))
+            ->setParameter('crawlable', true)
+            ->setMaxResults($blockSize)
+            ->orderBy('s.shortCode');
 
         $page = 0;
         do {

@@ -1,5 +1,5 @@
 {
-    "openapi": "3.0.3",
+    "openapi": "3.1.0",
     "info": {
         "title": "Shlink",
         "description": "Shlink, the self-hosted URL shortener",
@@ -43,6 +43,10 @@
             "description": "Operations that can be performed on short URLs"
         },
         {
+            "name": "Redirect rules",
+            "description": "Handle dynamic rule-based redirects"
+        },
+        {
             "name": "Tags",
             "description": "Let you handle the list of available tags"
         },
@@ -77,6 +81,10 @@
         },
         "/rest/v{version}/short-urls/{shortCode}": {
             "$ref": "paths/v1_short-urls_{shortCode}.json"
+        },
+
+        "/rest/v{version}/short-urls/{shortCode}/redirect-rules": {
+            "$ref": "paths/v3_short-urls_{shortCode}_redirect-rules.json"
         },
 
         "/rest/v{version}/tags": {
@@ -125,9 +133,6 @@
         },
         "/{shortCode}/track": {
             "$ref": "paths/{shortCode}_track.json"
-        },
-        "/{shortCode}/qr-code": {
-            "$ref": "paths/{shortCode}_qr-code.json"
         }
     }
 }

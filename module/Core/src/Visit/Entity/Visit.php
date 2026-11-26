@@ -17,114 +17,73 @@ use Shlinkio\Shlink\Core\Visit\Model\VisitType;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkOrphanVisit;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkVisit;
 
+use function Shlinkio\Shlink\Common\normalizeDate;
 use function Shlinkio\Shlink\Core\isCrawler;
-use function Shlinkio\Shlink\Core\normalizeDate;
-
-use const DATE_ATOM;
 
 class Visit extends AbstractEntity implements JsonSerializable
 {
-    private string $referer;
-    private Chronos $date;
-    private ?string $remoteAddr = null;
-    private ?string $visitedUrl = null;
-    private string $userAgent;
-    private VisitType $type;
-    private ?ShortUrl $shortUrl;
-    private ?VisitLocation $visitLocation = null;
-    private bool $potentialBot;
-    private ?DeviceClass $deviceType = null;
-    private ?string $deviceTypeDetail = null;
-
-    private function __construct(?ShortUrl $shortUrl, VisitType $type)
-    {
-        $this->shortUrl = $shortUrl;
-        $this->date = Chronos::now();
-        $this->type = $type;
-    }
+    private function __construct(
+        public readonly ShortUrl|null $shortUrl,
+        public readonly VisitType $type,
+        public readonly string $userAgent,
+        public readonly string $referer,
+        public readonly bool $potentialBot,
+        public readonly string|null $remoteAddr = null,
+        public readonly string|null $visitedUrl = null,
+        public readonly string|null $redirectUrl = null,
+        private(set) VisitLocation|null $visitLocation = null,
+        public readonly Chronos $date = new Chronos(),
+        public readonly DeviceClass|null $deviceType = null,
+        public readonly string|null $deviceTypeDetail = null,
+    ) {}
 
     public static function forValidShortUrl(ShortUrl $shortUrl, Visitor $visitor, bool $anonymize = true): self
     {
-        $instance = new self($shortUrl, VisitType::VALID_SHORT_URL);
-        $instance->hydrateFromVisitor($visitor, $anonymize);
-
-        return $instance;
-    }
-
-    public static function fromImport(ShortUrl $shortUrl, ImportedShlinkVisit $importedVisit): self
-    {
-        return self::fromImportOrOrphanImport($importedVisit, VisitType::IMPORTED, $shortUrl);
-    }
-
-    public static function fromOrphanImport(ImportedShlinkOrphanVisit $importedVisit): self
-    {
-        $instance = self::fromImportOrOrphanImport(
-            $importedVisit,
-            VisitType::tryFrom($importedVisit->type) ?? VisitType::IMPORTED,
-        );
-        $instance->visitedUrl = $importedVisit->visitedUrl;
-
-        return $instance;
-    }
-
-    private static function fromImportOrOrphanImport(
-        ImportedShlinkVisit|ImportedShlinkOrphanVisit $importedVisit,
-        VisitType $type,
-        ?ShortUrl $shortUrl = null,
-    ): self {
-        $instance = new self($shortUrl, $type);
-        $instance->userAgent = $importedVisit->userAgent;
-        $instance->potentialBot = isCrawler($instance->userAgent);
-        $instance->referer = $importedVisit->referer;
-        $instance->date = normalizeDate($importedVisit->date);
-
-        $importedLocation = $importedVisit->location;
-        $instance->visitLocation = $importedLocation !== null ? VisitLocation::fromImport($importedLocation) : null;
-
-        return $instance;
+        return self::fromVisitor($shortUrl, VisitType::VALID_SHORT_URL, $visitor, $anonymize);
     }
 
     public static function forBasePath(Visitor $visitor, bool $anonymize = true): self
     {
-        $instance = new self(null, VisitType::BASE_URL);
-        $instance->hydrateFromVisitor($visitor, $anonymize);
-
-        return $instance;
+        return self::fromVisitor(null, VisitType::BASE_URL, $visitor, $anonymize);
     }
 
     public static function forInvalidShortUrl(Visitor $visitor, bool $anonymize = true): self
     {
-        $instance = new self(null, VisitType::INVALID_SHORT_URL);
-        $instance->hydrateFromVisitor($visitor, $anonymize);
-
-        return $instance;
+        return self::fromVisitor(null, VisitType::INVALID_SHORT_URL, $visitor, $anonymize);
     }
 
     public static function forRegularNotFound(Visitor $visitor, bool $anonymize = true): self
     {
-        $instance = new self(null, VisitType::REGULAR_404);
-        $instance->hydrateFromVisitor($visitor, $anonymize);
-
-        return $instance;
+        return self::fromVisitor(null, VisitType::REGULAR_404, $visitor, $anonymize);
     }
 
-    private function hydrateFromVisitor(Visitor $visitor, bool $anonymize = true): void
-    {
-        $this->userAgent = $visitor->userAgent;
-        $this->referer = $visitor->referer;
-        $this->remoteAddr = $this->processAddress($anonymize, $visitor->remoteAddress);
-        $this->visitedUrl = $visitor->visitedUrl;
-        $this->potentialBot = $visitor->isPotentialBot();
-
-        $classification = DeviceClassifier::classify($this->userAgent);
-        $this->deviceType = $classification->class;
-        $this->deviceTypeDetail = $classification->detail;
+    private static function fromVisitor(
+        ShortUrl|null $shortUrl,
+        VisitType $type,
+        Visitor $visitor,
+        bool $anonymize,
+    ): self {
+        $geolocation = $visitor->geolocation;
+        $deviceClassification = DeviceClassifier::classify($visitor->userAgent);
+        return new self(
+            shortUrl: $shortUrl,
+            type: $type,
+            userAgent: $visitor->userAgent,
+            referer: $visitor->referer,
+            potentialBot: $visitor->potentialBot,
+            remoteAddr: self::processAddress($visitor->remoteAddress, $anonymize),
+            visitedUrl: $visitor->visitedUrl,
+            redirectUrl: $visitor->redirectUrl,
+            visitLocation: $geolocation !== null ? VisitLocation::fromLocation($geolocation) : null,
+            deviceType: $deviceClassification->class,
+            deviceTypeDetail: $deviceClassification->detail,
+        );
     }
 
-    private function processAddress(bool $anonymize, ?string $address): ?string
+    private static function processAddress(string|null $address, bool $anonymize): string|null
     {
-        // Localhost addresses do not need to be anonymized
-        if (! $anonymize || $address === null || $address === IpAddress::LOCALHOST) {
+        // Localhost address does not need to be anonymized
+        if (!$anonymize || $address === null || $address === IpAddress::LOCALHOST) {
             return $address;
         }
 
@@ -135,29 +94,40 @@ class Visit extends AbstractEntity implements JsonSerializable
         }
     }
 
-    public function getRemoteAddr(): ?string
+    public static function fromImport(ShortUrl $shortUrl, ImportedShlinkVisit $importedVisit): self
     {
-        return $this->remoteAddr;
+        return self::fromImportOrOrphanImport($importedVisit, VisitType::IMPORTED, $shortUrl);
+    }
+
+    public static function fromOrphanImport(ImportedShlinkOrphanVisit $importedVisit): self
+    {
+        return self::fromImportOrOrphanImport(
+            $importedVisit,
+            VisitType::tryFrom($importedVisit->type) ?? VisitType::IMPORTED,
+        );
+    }
+
+    private static function fromImportOrOrphanImport(
+        ImportedShlinkVisit|ImportedShlinkOrphanVisit $importedVisit,
+        VisitType $type,
+        ShortUrl|null $shortUrl = null,
+    ): self {
+        $importedLocation = $importedVisit->location;
+        return new self(
+            shortUrl: $shortUrl,
+            type: $type,
+            userAgent: $importedVisit->userAgent,
+            referer: $importedVisit->referer,
+            potentialBot: isCrawler($importedVisit->userAgent),
+            visitedUrl: $importedVisit instanceof ImportedShlinkOrphanVisit ? $importedVisit->visitedUrl : null,
+            visitLocation: $importedLocation !== null ? VisitLocation::fromLocation($importedLocation) : null,
+            date: normalizeDate($importedVisit->date),
+        );
     }
 
     public function hasRemoteAddr(): bool
     {
-        return ! empty($this->remoteAddr);
-    }
-
-    public function getShortUrl(): ?ShortUrl
-    {
-        return $this->shortUrl;
-    }
-
-    public function getVisitLocation(): ?VisitLocation
-    {
-        return $this->visitLocation;
-    }
-
-    public function isLocatable(): bool
-    {
-        return $this->hasRemoteAddr() && $this->remoteAddr !== IpAddress::LOCALHOST;
+        return !empty($this->remoteAddr);
     }
 
     public function locate(VisitLocation $visitLocation): self
@@ -171,56 +141,38 @@ class Visit extends AbstractEntity implements JsonSerializable
         return $this->shortUrl === null;
     }
 
-    public function visitedUrl(): ?string
-    {
-        return $this->visitedUrl;
-    }
-
-    public function deviceType(): ?DeviceClass
-    {
-        return $this->deviceType;
-    }
-
-    public function deviceTypeDetail(): ?string
-    {
-        return $this->deviceTypeDetail;
-    }
-
-    public function type(): VisitType
-    {
-        return $this->type;
-    }
-
     /**
      * Needed only for ArrayCollections to be able to apply criteria filtering
      * @internal
      */
     public function getType(): VisitType
     {
-        return $this->type();
-    }
-
-    /**
-     * @internal
-     */
-    public function getDate(): Chronos
-    {
-        return $this->date;
+        return $this->type;
     }
 
     public function jsonSerialize(): array
     {
-        return [
+        $base = [
             'referer' => $this->referer,
-            // spec:click-tracking: AC-10
-            'date' => $this->date->setTimezone('UTC')->format(DATE_ATOM),
+            // Core reads the date as UTC (VisitDto, ClickRecordedDto), whatever the TZ of this service
+            'date' => $this->date->setTimezone('UTC')->toAtomString(),
             'userAgent' => $this->userAgent,
             'visitLocation' => $this->visitLocation,
             'potentialBot' => $this->potentialBot,
-            'id' => (int) $this->getId(),
             'visitedUrl' => $this->visitedUrl,
+            'redirectUrl' => $this->redirectUrl,
+            // Read by core for the REST visits and the Kafka visit event
+            'id' => (int) $this->getId(),
             'deviceType' => $this->deviceType?->value,
             'deviceTypeDetail' => $this->deviceTypeDetail,
+        ];
+        if (!$this->isOrphan()) {
+            return $base;
+        }
+
+        return [
+            ...$base,
+            'type' => $this->type->value,
         ];
     }
 }

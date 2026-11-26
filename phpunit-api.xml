@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="./config/test/bootstrap_api_tests.php"
+    colors="true"
+    cacheDirectory="build/.phpunit/api-tests.cache"
+    displayDetailsOnTestsThatTriggerWarnings="true"
+    displayDetailsOnTestsThatTriggerDeprecations="true"
+    displayDetailsOnPhpunitNotices="true"
+    displayDetailsOnPhpunitDeprecations="true"
+    displayDetailsOnTestsThatTriggerNotices="true"
+>
+    <testsuites>
+        <testsuite name="Shlink API tests">
+            <directory>./module/*/test-api</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>./module/Core/src</directory>
+            <directory>./module/Rest/src</directory>
+        </include>
+    </source>
+</phpunit>

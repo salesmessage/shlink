@@ -23,11 +23,10 @@ class KafkaProducerFactory
         /** @var LoggerInterface $logger */
         $logger = $container->get('Logger_Shlink');
 
-        if (! ($config['enabled'] ?? false)) {
+        if (!($config['enabled'] ?? false)) {
             return new NullProducer();
         }
 
-        /** @var DeliveryFailures $failures */
         $failures = $container->get(DeliveryFailures::class);
         $brokers = (string) ($config['brokers'] ?? '');
 

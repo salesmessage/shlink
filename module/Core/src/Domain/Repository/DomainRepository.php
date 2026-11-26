@@ -14,21 +14,23 @@ use Shlinkio\Shlink\Core\ShortUrl\Spec\BelongsToApiKey;
 use Shlinkio\Shlink\Rest\ApiKey\Role;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
+/** @extends EntitySpecificationRepository<Domain> */
 class DomainRepository extends EntitySpecificationRepository implements DomainRepositoryInterface
 {
     /**
      * @return Domain[]
      */
-    public function findDomains(?ApiKey $apiKey = null): array
+    public function findDomains(ApiKey|null $apiKey = null): array
     {
         $qb = $this->createQueryBuilder('d');
-        $qb->leftJoin(ShortUrl::class, 's', Join::WITH, 's.domain = d')
-           ->groupBy('d')
-           ->orderBy('d.authority', 'ASC')
-           ->having($qb->expr()->gt('COUNT(s.id)', '0'))
-           ->orHaving($qb->expr()->isNotNull('d.baseUrlRedirect'))
-           ->orHaving($qb->expr()->isNotNull('d.regular404Redirect'))
-           ->orHaving($qb->expr()->isNotNull('d.invalidShortUrlRedirect'));
+        $qb
+            ->leftJoin(ShortUrl::class, 's', Join::WITH, 's.domain = d')
+            ->groupBy('d')
+            ->orderBy('d.authority', 'ASC')
+            ->having($qb->expr()->gt('COUNT(s.id)', '0'))
+            ->orHaving($qb->expr()->isNotNull('d.baseUrlRedirect'))
+            ->orHaving($qb->expr()->isNotNull('d.regular404Redirect'))
+            ->orHaving($qb->expr()->isNotNull('d.invalidShortUrlRedirect'));
 
         $specs = $this->determineExtraSpecs($apiKey);
         foreach ($specs as [$alias, $spec]) {
@@ -38,7 +40,7 @@ class DomainRepository extends EntitySpecificationRepository implements DomainRe
         return $qb->getQuery()->getResult();
     }
 
-    public function findOneByAuthority(string $authority, ?ApiKey $apiKey = null): ?Domain
+    public function findOneByAuthority(string $authority, ApiKey|null $apiKey = null): Domain|null
     {
         $qb = $this->createDomainQueryBuilder($authority, $apiKey);
         $qb->select('d');
@@ -46,22 +48,23 @@ class DomainRepository extends EntitySpecificationRepository implements DomainRe
         return $qb->getQuery()->getOneOrNullResult();
     }
 
-    public function domainExists(string $authority, ?ApiKey $apiKey = null): bool
+    public function domainExists(string $authority, ApiKey|null $apiKey = null): bool
     {
         $qb = $this->createDomainQueryBuilder($authority, $apiKey);
         $qb->select('COUNT(d.id)');
 
-        return ((int) $qb->getQuery()->getSingleScalarResult()) > 0;
+        return (int) $qb->getQuery()->getSingleScalarResult() > 0;
     }
 
-    private function createDomainQueryBuilder(string $authority, ?ApiKey $apiKey): QueryBuilder
+    private function createDomainQueryBuilder(string $authority, ApiKey|null $apiKey): QueryBuilder
     {
         $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->from(Domain::class, 'd')
-           ->leftJoin(ShortUrl::class, 's', Join::WITH, 's.domain = d')
-           ->where($qb->expr()->eq('d.authority', ':authority'))
-           ->setParameter('authority', $authority)
-           ->setMaxResults(1);
+        $qb
+            ->from(Domain::class, 'd')
+            ->leftJoin(ShortUrl::class, 's', Join::WITH, 's.domain = d')
+            ->where($qb->expr()->eq('d.authority', ':authority'))
+            ->setParameter('authority', $authority)
+            ->setMaxResults(1);
 
         $specs = $this->determineExtraSpecs($apiKey);
         foreach ($specs as [$alias, $spec]) {
@@ -71,14 +74,15 @@ class DomainRepository extends EntitySpecificationRepository implements DomainRe
         return $qb;
     }
 
-    private function determineExtraSpecs(?ApiKey $apiKey): iterable
+    private function determineExtraSpecs(ApiKey|null $apiKey): iterable
     {
         // FIXME The $apiKey->spec() method cannot be used here, as it returns a single spec which assumes the
         //       ShortUrl is the root entity. Here, the Domain is the root entity.
         //       Think on a way to centralize the conditional behavior and make $apiKey->spec() more flexible.
-        yield from $apiKey?->mapRoles(fn (Role $role, array $meta) => match ($role) {
+        yield from $apiKey?->mapRoles(static fn (Role $role, array $meta) => match ($role) {
             Role::DOMAIN_SPECIFIC => ['d', new IsDomain(Role::domainIdFromMeta($meta))],
             Role::AUTHORED_SHORT_URLS => ['s', new BelongsToApiKey($apiKey)],
+            default => null,
         }) ?? [];
     }
 }

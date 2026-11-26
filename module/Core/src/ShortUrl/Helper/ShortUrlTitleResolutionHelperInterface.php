@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\ShortUrl\Helper;
 
-use Shlinkio\Shlink\Core\Exception\InvalidUrlException;
-
 interface ShortUrlTitleResolutionHelperInterface
 {
     /**
-     * @throws InvalidUrlException
+     * @template T of TitleResolutionModelInterface
+     * @param T $data
+     * @return T
      */
-    public function processTitleAndValidateUrl(TitleResolutionModelInterface $data): TitleResolutionModelInterface;
+    public function processTitle(TitleResolutionModelInterface $data): TitleResolutionModelInterface;
 }

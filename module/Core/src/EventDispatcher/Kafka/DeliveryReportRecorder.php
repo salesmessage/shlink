@@ -14,15 +14,14 @@ final class DeliveryReportRecorder
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly DeliveryFailures $failures,
-    ) {
-    }
+    ) {}
 
     public function __invoke(mixed $kafka, object $report): void
     {
         $reportValues = get_object_vars($report);
         $errorCode = $reportValues['err'] ?? 0;
 
-        if (! is_int($errorCode) || $errorCode === 0) {
+        if (!is_int($errorCode) || $errorCode === 0) {
             return;
         }
 

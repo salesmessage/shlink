@@ -5,26 +5,28 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\ShortUrl\Entity;
 
 use Cake\Chronos\Chronos;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Core\Exception\ShortCodeCannotBeRegeneratedException;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
-use Shlinkio\Shlink\Core\ShortUrl\Model\Validation\ShortUrlInputFilter;
+use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlMode;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkUrl;
 use Shlinkio\Shlink\Importer\Sources\ImportSource;
 
-use function Functional\map;
+use function array_map;
 use function range;
+use function Shlinkio\Shlink\Core\ArrayUtils\every;
 use function strlen;
+use function strtolower;
 
 use const Shlinkio\Shlink\DEFAULT_SHORT_CODES_LENGTH;
 
 class ShortUrlTest extends TestCase
 {
-    /**
-     * @test
-     * @dataProvider provideInvalidShortUrls
-     */
+    #[Test, DataProvider('provideInvalidShortUrls')]
     public function regenerateShortCodeThrowsExceptionIfStateIsInvalid(
         ShortUrl $shortUrl,
         string $expectedMessage,
@@ -32,61 +34,94 @@ class ShortUrlTest extends TestCase
         $this->expectException(ShortCodeCannotBeRegeneratedException::class);
         $this->expectExceptionMessage($expectedMessage);
 
-        $shortUrl->regenerateShortCode();
+        $shortUrl->regenerateShortCode(ShortUrlMode::STRICT);
     }
 
-    public function provideInvalidShortUrls(): iterable
+    public static function provideInvalidShortUrls(): iterable
     {
         yield 'with custom slug' => [
-            ShortUrl::create(ShortUrlCreation::fromRawData(['customSlug' => 'custom-slug', 'longUrl' => ''])),
+            ShortUrl::create(new ShortUrlCreation('https://longUrl', customSlug: 'custom-slug')),
             'The short code cannot be regenerated on ShortUrls where a custom slug was provided.',
         ];
         yield 'already persisted' => [
-            ShortUrl::createEmpty()->setId('1'),
+            ShortUrl::createFake()->setId('1'),
             'The short code can be regenerated only on new ShortUrls which have not been persisted yet.',
         ];
     }
 
-    /**
-     * @test
-     * @dataProvider provideValidShortUrls
-     */
+    #[Test, DataProvider('provideValidShortUrls')]
     public function regenerateShortCodeProperlyChangesTheValueOnValidShortUrls(
         ShortUrl $shortUrl,
     ): void {
-        $firstShortCode = $shortUrl->getShortCode();
+        $firstShortCode = $shortUrl->shortCode;
 
-        $shortUrl->regenerateShortCode();
-        $secondShortCode = $shortUrl->getShortCode();
+        $shortUrl->regenerateShortCode(ShortUrlMode::STRICT);
+        $secondShortCode = $shortUrl->shortCode;
 
         self::assertNotEquals($firstShortCode, $secondShortCode);
     }
 
-    public function provideValidShortUrls(): iterable
+    public static function provideValidShortUrls(): iterable
     {
-        yield 'no custom slug' => [ShortUrl::createEmpty()];
+        yield 'no custom slug' => [ShortUrl::createFake()];
         yield 'imported with custom slug' => [ShortUrl::fromImport(
-            new ImportedShlinkUrl(ImportSource::BITLY, '', [], Chronos::now(), null, 'custom-slug', null),
+            new ImportedShlinkUrl(ImportSource::BITLY, 'https://url', [], Chronos::now(), null, 'custom-slug', null),
             true,
         )];
     }
 
     /**
-     * @test
-     * @dataProvider provideLengths
+     * @param int<4, max>|null $length
      */
-    public function shortCodesHaveExpectedLength(?int $length, int $expectedLength): void
+    #[Test, DataProvider('provideLengths')]
+    public function shortCodesHaveExpectedLength(int|null $length, int $expectedLength): void
     {
-        $shortUrl = ShortUrl::create(ShortUrlCreation::fromRawData(
-            [ShortUrlInputFilter::SHORT_CODE_LENGTH => $length, 'longUrl' => ''],
-        ));
+        $shortUrl = ShortUrl::create(
+            new ShortUrlCreation('https://longUrl', shortCodeLength: $length ?? DEFAULT_SHORT_CODES_LENGTH),
+        );
 
-        self::assertEquals($expectedLength, strlen($shortUrl->getShortCode()));
+        self::assertEquals($expectedLength, strlen($shortUrl->shortCode));
     }
 
-    public function provideLengths(): iterable
+    public static function provideLengths(): iterable
     {
         yield [null, DEFAULT_SHORT_CODES_LENGTH];
-        yield from map(range(4, 10), fn (int $value) => [$value, $value]);
+        yield from array_map(static fn (int $value) => [$value, $value], range(4, 10));
+    }
+
+    #[Test]
+    #[TestWith([null, '', 5])]
+    #[TestWith(['foo bar/', 'foo-bar-', 13])]
+    public function shortCodesHaveExpectedPrefix(
+        string|null $pathPrefix,
+        string $expectedPrefix,
+        int $expectedShortCodeLength,
+    ): void {
+        $shortUrl = ShortUrl::create(new ShortUrlCreation(
+            longUrl: 'https://longUrl',
+            pathPrefix: $pathPrefix,
+            shortCodeLength: 5,
+        ));
+        $shortCode = $shortUrl->shortCode;
+
+        if (strlen($expectedPrefix) > 0) {
+            self::assertStringStartsWith($expectedPrefix, $shortCode);
+        }
+        self::assertEquals($expectedShortCodeLength, strlen($shortCode));
+    }
+
+    #[Test]
+    public function generatesLowercaseOnlyShortCodesInLooseMode(): void
+    {
+        $range = range(1, 1000); // Use a "big" number to reduce false negatives
+        $allFor = static fn (ShortUrlMode $mode): bool => every($range, static function () use ($mode): bool {
+            $shortUrl = ShortUrl::create(new ShortUrlCreation('https://foo', shortUrlMode: $mode));
+            $shortCode = $shortUrl->shortCode;
+
+            return $shortCode === strtolower($shortCode);
+        });
+
+        self::assertTrue($allFor(ShortUrlMode::LOOSE));
+        self::assertFalse($allFor(ShortUrlMode::STRICT));
     }
 }

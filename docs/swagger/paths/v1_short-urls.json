@@ -31,7 +31,7 @@
             {
                 "name": "searchTerm",
                 "in": "query",
-                "description": "A query used to filter results by searching for it on the longUrl and shortCode fields. (Since v1.3.0)",
+                "description": "A query used to filter results by searching for it on the longUrl and shortCode fields.",
                 "required": false,
                 "schema": {
                     "type": "string"
@@ -40,7 +40,7 @@
             {
                 "name": "tags[]",
                 "in": "query",
-                "description": "A list of tags used to filter the result set. Only short URLs tagged with at least one of the provided tags will be returned. (Since v1.3.0)",
+                "description": "A list of tags used to filter the result set. Only short URLs **with** these tags will be returned.",
                 "required": false,
                 "schema": {
                     "type": "array",
@@ -52,7 +52,29 @@
             {
                 "name": "tagsMode",
                 "in": "query",
-                "description": "Tells how the filtering by tags should work, returning short URLs containing \"any\" of the tags, or \"all\" the tags. It's ignored if no tags are provided, and defaults to \"any\" if not provided.",
+                "description": "Tells how the filtering by `tags` should work, returning short URLs containing \"any\" of the tags, or \"all\" the tags. Defaults to \"any\".<br />It's ignored if `tags` is not provided.",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": ["any", "all"]
+                }
+            },
+            {
+                "name": "excludeTags[]",
+                "in": "query",
+                "description": "A list of tags used to filter the result set. Only short URLs **without** these tags will be returned.",
+                "required": false,
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            {
+                "name": "excludeTagsMode",
+                "in": "query",
+                "description": "Tells how the filtering by `excludeTags` should work, returning short URLs not containing \"any\" of the tags, or not containing \"all\" the tags. Defaults to \"any\".<br />It's ignored if `excludeTags` is not provided.",
                 "required": false,
                 "schema": {
                     "type": "string",
@@ -125,6 +147,24 @@
                         "false"
                     ]
                 }
+            },
+            {
+                "name": "domain",
+                "in": "query",
+                "description": "Get short URLs for this particular domain only. Use **DEFAULT** keyword for default domain.",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "apiKeyName",
+                "in": "query",
+                "description": "Only get short URLs created with this API key.<br />This value is **ignored** if the request is performed with a non-admin API key that does not match this name.",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                }
             }
         ],
         "security": [
@@ -161,7 +201,7 @@
                                 "data": [
                                     {
                                         "shortCode": "12C18",
-                                        "shortUrl": "https://doma.in/12C18",
+                                        "shortUrl": "https://s.test/12C18",
                                         "longUrl": "https://store.steampowered.com",
                                         "dateCreated": "2016-08-21T20:34:16+02:00",
                                         "visitsSummary": {
@@ -180,11 +220,13 @@
                                         },
                                         "domain": null,
                                         "title": "Welcome to Steam",
-                                        "crawlable": false
+                                        "crawlable": false,
+                                        "forwardQuery": true,
+                                        "hasRedirectRules": true
                                     },
                                     {
                                         "shortCode": "12Kb3",
-                                        "shortUrl": "https://doma.in/12Kb3",
+                                        "shortUrl": "https://s.test/12Kb3",
                                         "longUrl": "https://shlink.io",
                                         "dateCreated": "2016-05-01T20:34:16+02:00",
                                         "visitsSummary": {
@@ -202,7 +244,9 @@
                                         },
                                         "domain":  null,
                                         "title": null,
-                                        "crawlable": false
+                                        "crawlable": false,
+                                        "forwardQuery": true,
+                                        "hasRedirectRules": false
                                     },
                                     {
                                         "shortCode": "123bA",
@@ -222,7 +266,9 @@
                                         },
                                         "domain":  "example.com",
                                         "title": null,
-                                        "crawlable": false
+                                        "crawlable": false,
+                                        "forwardQuery": false,
+                                        "hasRedirectRules": true
                                     }
                                 ],
                                 "pagination": {
@@ -285,6 +331,10 @@
                                         "description": "A unique custom slug to be used instead of the generated short code",
                                         "type": "string"
                                     },
+                                    "pathPrefix": {
+                                        "description": "A prefix that will be prepended to provided custom slug or auto-generated short code",
+                                        "type": "string"
+                                    },
                                     "findIfExists": {
                                         "description": "Will force existing matching URL to be returned if found, instead of creating a new one",
                                         "type": "boolean"
@@ -296,10 +346,6 @@
                                     "shortCodeLength": {
                                         "description": "The length for generated short code. It has to be at least 4 and defaults to 5. It will be ignored when customSlug is provided",
                                         "type": "number"
-                                    },
-                                    "validateUrl": {
-                                        "description": "Tells if the long URL should or should not be validated as a reachable URL. If not provided, it will fall back to app-level config",
-                                        "type": "boolean"
                                     }
                                 }
                             }
@@ -318,7 +364,7 @@
                         },
                         "example": {
                             "shortCode": "12C18",
-                            "shortUrl": "https://doma.in/12C18",
+                            "shortUrl": "https://s.test/12C18",
                             "longUrl": "https://store.steampowered.com",
                             "dateCreated": "2016-08-21T20:34:16+02:00",
                             "visitsSummary": {
@@ -337,7 +383,9 @@
                             },
                             "domain": null,
                             "title": null,
-                            "crawlable": false
+                            "crawlable": false,
+                            "forwardQuery": true,
+                            "hasRedirectRules": false
                         }
                     }
                 }
@@ -363,15 +411,12 @@
                                                     "validSince",
                                                     "validUntil",
                                                     "customSlug",
+                                                    "pathPrefix",
                                                     "maxVisits",
                                                     "findIfExists",
                                                     "domain"
                                                 ]
                                             }
-                                        },
-                                        "url": {
-                                            "type": "string",
-                                            "description": "A URL that could not be verified, if the error type is https://shlink.io/api/error/invalid-url"
                                         },
                                         "customSlug": {
                                             "type": "string",
@@ -386,43 +431,13 @@
                             ]
                         },
                         "examples": {
-                            "Invalid arguments with API v3 and newer": {
+                            "Invalid arguments": {
                                 "$ref": "../examples/short-url-invalid-args-v3.json"
                             },
-                            "Invalid long URL with API v3 and newer": {
-                                "value": {
-                                    "title": "Invalid URL",
-                                    "type": "https://shlink.io/api/error/invalid-url",
-                                    "detail": "Provided URL foo is invalid. Try with a different one.",
-                                    "status": 400,
-                                    "url": "https://invalid-url.com"
-                                }
-                            },
-                            "Non-unique slug with API v3 and newer": {
+                            "Non-unique slug": {
                                 "value": {
                                     "title": "Invalid custom slug",
                                     "type": "https://shlink.io/api/error/non-unique-slug",
-                                    "detail": "Provided slug \"my-slug\" is already in use.",
-                                    "status": 400,
-                                    "customSlug": "my-slug"
-                                }
-                            },
-                            "Invalid arguments previous to API v3": {
-                                "$ref": "../examples/short-url-invalid-args-v2.json"
-                            },
-                            "Invalid long URL previous to API v3": {
-                                "value": {
-                                    "title": "Invalid URL",
-                                    "type": "INVALID_URL",
-                                    "detail": "Provided URL foo is invalid. Try with a different one.",
-                                    "status": 400,
-                                    "url": "https://invalid-url.com"
-                                }
-                            },
-                            "Non-unique slug previous to API v3": {
-                                "value": {
-                                    "title": "Invalid custom slug",
-                                    "type": "INVALID_SLUG",
                                     "detail": "Provided slug \"my-slug\" is already in use.",
                                     "status": 400,
                                     "customSlug": "my-slug"

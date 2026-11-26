@@ -11,12 +11,10 @@ use Salesmessage\Streaming\Route\RouteInterface;
 
 final class LazyProducer implements ProducerInterface
 {
-    private ?ProducerInterface $producer = null;
+    private ProducerInterface|null $producer = null;
 
     /** @param Closure(): ProducerInterface $factory */
-    public function __construct(private readonly Closure $factory)
-    {
-    }
+    public function __construct(private readonly Closure $factory) {}
 
     public function send(RouteInterface $route, MessageInterface $message): void
     {

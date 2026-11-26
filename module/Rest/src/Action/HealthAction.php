@@ -8,21 +8,19 @@ use Doctrine\ORM\EntityManagerInterface;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Shlinkio\Shlink\Core\Options\AppOptions;
+use Shlinkio\Shlink\Core\Config\Options\AppOptions;
 use Throwable;
 
 class HealthAction extends AbstractRestAction
 {
-    private const HEALTH_CONTENT_TYPE = 'application/health+json';
-    private const STATUS_PASS = 'pass';
-    private const STATUS_FAIL = 'fail';
+    private const string HEALTH_CONTENT_TYPE = 'application/health+json';
+    private const string STATUS_PASS = 'pass';
+    private const string STATUS_FAIL = 'fail';
 
-    protected const ROUTE_PATH = '/health';
-    protected const ROUTE_ALLOWED_METHODS = [self::METHOD_GET];
+    public const string ROUTE_PATH = '/health';
+    protected const array ROUTE_ALLOWED_METHODS = [self::METHOD_GET];
 
-    public function __construct(private EntityManagerInterface $em, private AppOptions $options)
-    {
-    }
+    public function __construct(private readonly EntityManagerInterface $em, private readonly AppOptions $options) {}
 
     /**
      * Handles a request and produces a response.
@@ -40,13 +38,17 @@ class HealthAction extends AbstractRestAction
         }
 
         $statusCode = $connected ? self::STATUS_OK : self::STATUS_SERVICE_UNAVAILABLE;
-        return new JsonResponse([
-            'status' => $connected ? self::STATUS_PASS : self::STATUS_FAIL,
-            'version' => $this->options->version,
-            'links' => [
-                'about' => 'https://shlink.io',
-                'project' => 'https://github.com/shlinkio/shlink',
+        return new JsonResponse(
+            [
+                'status' => $connected ? self::STATUS_PASS : self::STATUS_FAIL,
+                'version' => $this->options->version,
+                'links' => [
+                    'about' => 'https://shlink.io',
+                    'project' => 'https://github.com/shlinkio/shlink',
+                ],
             ],
-        ], $statusCode, ['Content-type' => self::HEALTH_CONTENT_TYPE]);
+            $statusCode,
+            ['Content-type' => self::HEALTH_CONTENT_TYPE],
+        );
     }
 }

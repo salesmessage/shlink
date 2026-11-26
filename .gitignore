@@ -1,7 +1,6 @@
 .idea
-bin/.rr.*
 bin/rr
-config/roadrunner/.pid
+.pid
 build
 !docker/build
 composer.phar
@@ -9,11 +8,11 @@ vendor/
 data/database.sqlite
 data/shlink-tests.db
 data/GeoLite2-City.*
-docs/swagger-ui*
+data/infra/matomo
 docs/mercure.html
-docker-compose.override.yml
 .phpunit.result.cache
-docs/swagger/swagger-inlined.json
+docs/swagger/openapi-inlined.json
+# Local env and the composer credentials the image build reads from the build context
 .env.testing
 .env
 auth.json

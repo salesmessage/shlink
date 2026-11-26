@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Rest;
 
 use Laminas\ServiceManager\AbstractFactory\ConfigAbstractFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Rest\ConfigProvider;
 
@@ -17,7 +19,7 @@ class ConfigProviderTest extends TestCase
         $this->configProvider = new ConfigProvider();
     }
 
-    /** @test */
+    #[Test]
     public function properConfigIsReturned(): void
     {
         $config = ($this->configProvider)();
@@ -26,20 +28,17 @@ class ConfigProviderTest extends TestCase
         self::assertArrayHasKey('dependencies', $config);
         self::assertArrayHasKey('auth', $config);
         self::assertArrayHasKey('entity_manager', $config);
-        self::assertArrayHasKey('initial_api_key', $config);
+        self::assertArrayHasKey('access_logs', $config);
         self::assertArrayHasKey(ConfigAbstractFactory::class, $config);
     }
 
-    /**
-     * @test
-     * @dataProvider provideRoutesConfig
-     */
+    #[Test, DataProvider('provideRoutesConfig')]
     public function routesAreProperlyPrefixed(array $routes, array $expected): void
     {
         self::assertEquals($expected, ConfigProvider::applyRoutesPrefix($routes));
     }
 
-    public function provideRoutesConfig(): iterable
+    public static function provideRoutesConfig(): iterable
     {
         yield 'health action present' => [
             [

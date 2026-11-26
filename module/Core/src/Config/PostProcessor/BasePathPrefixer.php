@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\Config\PostProcessor;
 
-use function Functional\map;
+use function array_map;
 
 class BasePathPrefixer
 {
-    private const ELEMENTS_WITH_PATH = ['routes', 'middleware_pipeline'];
+    private const array ELEMENTS_WITH_PATH = ['routes', 'middleware_pipeline'];
 
     public function __invoke(array $config): array
     {
@@ -23,13 +23,13 @@ class BasePathPrefixer
 
     private function prefixPathsWithBasePath(string $configKey, array $config, string $basePath): array
     {
-        return map($config[$configKey] ?? [], function (array $element) use ($basePath) {
-            if (! isset($element['path'])) {
+        return array_map(static function (array $element) use ($basePath) {
+            if (!isset($element['path'])) {
                 return $element;
             }
 
             $element['path'] = $basePath . $element['path'];
             return $element;
-        });
+        }, $config[$configKey] ?? []);
     }
 }

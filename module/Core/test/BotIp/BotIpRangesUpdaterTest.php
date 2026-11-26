@@ -10,6 +10,9 @@ use Doctrine\ORM\EntityManagerInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Psr7\Response;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -17,24 +20,25 @@ use Shlinkio\Shlink\Core\BotIp\BotIpRangesUpdater;
 use Shlinkio\Shlink\Core\BotIp\Entity\BotIpRange;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 use Shlinkio\Shlink\Core\BotIp\Repository\BotIpRangeRepositoryInterface;
-use Shlinkio\Shlink\Core\Options\BotIpOptions;
+use Shlinkio\Shlink\Core\Config\Options\BotIpOptions;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\SharedLockInterface;
 
 use function json_encode;
 use function str_contains;
 
+#[AllowMockObjectsWithoutExpectations]
 class BotIpRangesUpdaterTest extends TestCase
 {
-    private const CRAWLERS = 'https://example.com/common-crawlers.json';
-    private const FETCHERS = 'https://example.com/user-triggered-fetchers-google.json';
+    private const string CRAWLERS = 'https://example.com/common-crawlers.json';
+    private const string FETCHERS = 'https://example.com/user-triggered-fetchers-google.json';
 
-    private MockObject & ClientInterface $httpClient;
-    private MockObject & EntityManagerInterface $em;
-    private MockObject & BotIpRangeRepositoryInterface $repo;
-    private MockObject & LockFactory $locker;
-    private MockObject & SharedLockInterface $lock;
-    private MockObject & LoggerInterface $logger;
+    private MockObject&ClientInterface $httpClient;
+    private MockObject&EntityManagerInterface $em;
+    private MockObject&BotIpRangeRepositoryInterface $repo;
+    private MockObject&LockFactory $locker;
+    private MockObject&SharedLockInterface $lock;
+    private MockObject&LoggerInterface $logger;
 
     protected function setUp(): void
     {
@@ -54,7 +58,7 @@ class BotIpRangesUpdaterTest extends TestCase
         Chronos::setTestNow();
     }
 
-    /** @test */
+    #[Test]
     public function newRangesAreAddedAndKnownOnesMarkedAsSeen(): void
     {
         $known = BotIpRange::seenNow('66.249.80.192/27', BotIpSource::GOOGLE, Chronos::create(2026, 10, 1));
@@ -64,13 +68,20 @@ class BotIpRangesUpdaterTest extends TestCase
             self::CRAWLERS => ['66.249.64.0/27', '2001:4860:4801:10::/64'],
             self::FETCHERS => ['66.249.80.192/27', 'not-a-range'],
         ]);
-        $this->repo->method('findBySource')->with(BotIpSource::GOOGLE)->willReturn(['66.249.80.192/27' => $known]);
+        $this->repo
+            ->expects($this->once())
+            ->method('findBySource')
+            ->with(BotIpSource::GOOGLE)
+            ->willReturn(['66.249.80.192/27' => $known]);
         $persisted = [];
-        $this->em->expects($this->exactly(2))->method('persist')->willReturnCallback(
-            function (BotIpRange $range) use (&$persisted): void {
-                $persisted[] = $range->ip();
-            },
-        );
+        $this->em
+            ->expects($this->exactly(2))
+            ->method('persist')
+            ->willReturnCallback(
+                static function (BotIpRange $range) use (&$persisted): void {
+                    $persisted[] = $range->ip();
+                },
+            );
         $this->em->expects($this->once())->method('flush');
 
         $result = $this->updater()->update();
@@ -83,15 +94,19 @@ class BotIpRangesUpdaterTest extends TestCase
         self::assertEquals(Chronos::now(), $known->updatedAt());
     }
 
-    /** @test */
+    #[Test]
     public function failingSourceChangesNothingOfItsOwnAndIsReported(): void
     {
         $this->lock->method('acquire')->willReturn(true);
-        $this->httpClient->method('request')->willReturnCallback(
-            fn (string $method, string $url) => $url === self::CRAWLERS
-                ? throw new TransferException('timeout')
-                : new Response(200, [], (string) json_encode(['prefixes' => []])),
-        );
+        $this->httpClient
+            ->method('request')
+            ->willReturnCallback(
+                static fn (string $method, string $url) => (
+                    $url === self::CRAWLERS
+                        ? throw new TransferException('timeout')
+                        : new Response(200, [], (string) json_encode(['prefixes' => []]))
+                ),
+            );
         $this->repo->method('findBySource')->willReturn([]);
         $this->em->expects($this->never())->method('persist');
         $this->logger->expects($this->once())->method('error');
@@ -102,7 +117,7 @@ class BotIpRangesUpdaterTest extends TestCase
         self::assertTrue($result->allSourcesFailed());
     }
 
-    /** @test */
+    #[Test]
     public function nothingIsDownloadedWhileAnotherProcessHoldsTheLock(): void
     {
         $this->lock->method('acquire')->willReturn(false);
@@ -111,7 +126,7 @@ class BotIpRangesUpdaterTest extends TestCase
         self::assertFalse($this->updater()->update()->updated);
     }
 
-    /** @test */
+    #[Test]
     public function listRefreshedByAnotherWorkerWhileWaitingIsNotDownloadedAgain(): void
     {
         $this->repo->method('findLastSeenAt')->willReturnOnConsecutiveCalls(null, Chronos::now());
@@ -121,7 +136,7 @@ class BotIpRangesUpdaterTest extends TestCase
         self::assertFalse($this->updater()->updateIfStale()->updated);
     }
 
-    /** @test */
+    #[Test]
     public function rangesStoredByAnotherProcessAtTheSameTimeAreNotAnError(): void
     {
         $this->lock->method('acquire')->willReturn(true);
@@ -137,22 +152,25 @@ class BotIpRangesUpdaterTest extends TestCase
         self::assertFalse($result->allSourcesFailed());
     }
 
-    /**
-     * @test
-     * @dataProvider provideLastSeen
-     */
-    public function listIsDownloadedOnlyWhenStale(?Chronos $lastSeenAt, bool $expectedDownload): void
+    #[Test, DataProvider('provideLastSeen')]
+    public function listIsDownloadedOnlyWhenStale(Chronos|null $lastSeenAt, bool $expectedDownload): void
     {
-        $this->repo->method('findLastSeenAt')->with(BotIpSource::GOOGLE)->willReturn($lastSeenAt);
+        $this->repo
+            ->expects($this->atLeastOnce())
+            ->method('findLastSeenAt')
+            ->with(BotIpSource::GOOGLE)
+            ->willReturn($lastSeenAt);
         $this->repo->method('findBySource')->willReturn([]);
         $this->lock->method('acquire')->willReturn(true);
-        $this->httpClient->expects($expectedDownload ? $this->exactly(2) : $this->never())->method('request')
+        $this->httpClient
+            ->expects($expectedDownload ? $this->exactly(2) : $this->never())
+            ->method('request')
             ->willReturn(new Response(200, [], (string) json_encode(['prefixes' => []])));
 
         self::assertEquals($expectedDownload, $this->updater()->updateIfStale()->updated);
     }
 
-    public function provideLastSeen(): iterable
+    public static function provideLastSeen(): iterable
     {
         yield 'never downloaded' => [null, true];
         yield 'eight days old' => [Chronos::create(2026, 10, 27, 11), true];

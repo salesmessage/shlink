@@ -5,51 +5,47 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\Core\Visit;
 
 use Fig\Http\Message\RequestMethodInterface;
-use IPLib\Address\IPv4;
-use IPLib\Factory;
-use IPLib\Range\RangeInterface;
 use Mezzio\Router\Middleware\ImplicitHeadMiddleware;
 use Psr\Http\Message\ServerRequestInterface;
-use Shlinkio\Shlink\Common\Middleware\IpAddressMiddlewareFactory;
+use Shlinkio\Shlink\Core\Config\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\ErrorHandler\Model\NotFoundType;
-use Shlinkio\Shlink\Core\Options\TrackingOptions;
+use Shlinkio\Shlink\Core\Exception\InvalidIpFormatException;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
+use Shlinkio\Shlink\Core\Util\IpAddressUtils;
+use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 
-use function explode;
-use function Functional\map;
-use function Functional\some;
-use function implode;
-use function str_contains;
+use function Shlinkio\Shlink\Core\ipAddressFromRequest;
 
 use const Shlinkio\Shlink\URL_VALIDATION_HEADER;
 
-class RequestTracker implements RequestTrackerInterface, RequestMethodInterface
+readonly class RequestTracker implements RequestTrackerInterface, RequestMethodInterface
 {
     public function __construct(
-        private readonly VisitsTrackerInterface $visitsTracker,
-        private readonly TrackingOptions $trackingOptions,
-    ) {
-    }
+        private VisitsTrackerInterface $visitsTracker,
+        private TrackingOptions $trackingOptions,
+    ) {}
 
-    public function trackIfApplicable(ShortUrl $shortUrl, ServerRequestInterface $request): void
+    public function trackIfApplicable(ShortUrl $shortUrl, ServerRequestInterface $request): Visit|null
     {
-        if ($this->shouldTrackRequest($request)) {
-            $this->visitsTracker->track($shortUrl, Visitor::fromRequest($request));
+        if (!$this->shouldTrackRequest($request)) {
+            return null;
         }
+
+        return $this->visitsTracker->track($shortUrl, Visitor::fromRequest($request));
     }
 
-    public function trackNotFoundIfApplicable(ServerRequestInterface $request): void
+    public function trackNotFoundIfApplicable(ServerRequestInterface $request): Visit|null
     {
-        if (! $this->shouldTrackRequest($request)) {
-            return;
+        if (!$this->shouldTrackRequest($request)) {
+            return null;
         }
 
         /** @var NotFoundType|null $notFoundType */
         $notFoundType = $request->getAttribute(NotFoundType::class);
         $visitor = Visitor::fromRequest($request);
 
-        match (true) {
+        return match (true) {
             $notFoundType?->isBaseUrl() => $this->visitsTracker->trackBaseUrlVisit($visitor),
             $notFoundType?->isRegularNotFound() => $this->visitsTracker->trackRegularNotFoundVisit($visitor),
             $notFoundType?->isInvalidShortUrl() => $this->visitsTracker->trackInvalidShortUrlVisit($visitor),
@@ -64,51 +60,30 @@ class RequestTracker implements RequestTrackerInterface, RequestMethodInterface
             return false;
         }
 
-        // SWR-19123
+        // Shlink's own fetch of a long URL, see ShortUrlTitleResolutionHelper (SWR-19123)
         if ($request->hasHeader(URL_VALIDATION_HEADER)) {
             return false;
         }
 
-        $remoteAddr = $request->getAttribute(IpAddressMiddlewareFactory::REQUEST_ATTR);
+        $remoteAddr = ipAddressFromRequest($request);
         if ($this->shouldDisableTrackingFromAddress($remoteAddr)) {
             return false;
         }
 
         $query = $request->getQueryParams();
-        return ! $this->trackingOptions->queryHasDisableTrackParam($query);
+        return !$this->trackingOptions->queryHasDisableTrackParam($query);
     }
 
-    private function shouldDisableTrackingFromAddress(?string $remoteAddr): bool
+    private function shouldDisableTrackingFromAddress(string|null $remoteAddr): bool
     {
-        if ($remoteAddr === null || ! $this->trackingOptions->hasDisableTrackingFrom()) {
+        if ($remoteAddr === null || !$this->trackingOptions->hasDisableTrackingFrom()) {
             return false;
         }
 
-        $ip = IPv4::parseString($remoteAddr);
-        if ($ip === null) {
+        try {
+            return IpAddressUtils::ipAddressMatchesGroups($remoteAddr, $this->trackingOptions->disableTrackingFrom);
+        } catch (InvalidIpFormatException) {
             return false;
         }
-
-        $remoteAddrParts = explode('.', $remoteAddr);
-        $disableTrackingFrom = $this->trackingOptions->disableTrackingFrom;
-
-        return some($disableTrackingFrom, function (string $value) use ($ip, $remoteAddrParts): bool {
-            $range = str_contains($value, '*')
-                ? $this->parseValueWithWildcards($value, $remoteAddrParts)
-                : Factory::parseRangeString($value);
-
-            return $range !== null && $ip->matches($range);
-        });
-    }
-
-    private function parseValueWithWildcards(string $value, array $remoteAddrParts): ?RangeInterface
-    {
-        // Replace wildcard parts with the corresponding ones from the remote address
-        return Factory::parseRangeString(
-            implode('.', map(
-                explode('.', $value),
-                fn (string $part, int $index) => $part === '*' ? $remoteAddrParts[$index] : $part,
-            )),
-        );
     }
 }

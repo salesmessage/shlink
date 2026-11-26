@@ -13,9 +13,11 @@ use function is_numeric;
 /** @extends EntitySpecificationRepository<Visit> */
 class BotReclassificationQuery extends EntitySpecificationRepository implements BotReclassificationQueryInterface
 {
-    public function findFirstVisitIdSince(Chronos $since): ?int
+    public function findFirstVisitIdSince(Chronos $since): int|null
     {
-        $firstId = $this->getEntityManager()->createQueryBuilder()
+        $firstId = $this
+            ->getEntityManager()
+            ->createQueryBuilder()
             ->select('MIN(v.id)')
             ->from(Visit::class, 'v')
             ->where('v.date >= :since')
@@ -29,7 +31,9 @@ class BotReclassificationQuery extends EntitySpecificationRepository implements 
     public function findUnflaggedShortUrlVisits(Chronos $since, int $afterId, int $limit): array
     {
         /** @var array<array{id: string|int, userAgent: string|null, remoteAddr: string|null}> */
-        return $this->getEntityManager()->createQueryBuilder()
+        return $this
+            ->getEntityManager()
+            ->createQueryBuilder()
             ->select('v.id', 'v.userAgent', 'v.remoteAddr')
             ->from(Visit::class, 'v')
             ->where('v.id > :afterId')
@@ -47,7 +51,9 @@ class BotReclassificationQuery extends EntitySpecificationRepository implements 
 
     public function flagAsPotentialBots(array $visitIds): void
     {
-        $this->getEntityManager()->createQueryBuilder()
+        $this
+            ->getEntityManager()
+            ->createQueryBuilder()
             ->update(Visit::class, 'v')
             ->set('v.potentialBot', ':bot')
             ->where('v.id IN (:ids)')

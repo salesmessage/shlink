@@ -55,7 +55,7 @@ final class DeviceClassifier
         'openbsd',
     ];
 
-    public static function classify(?string $userAgent): DeviceClassification
+    public static function classify(string|null $userAgent): DeviceClassification
     {
         $normalized = strtolower(trim($userAgent ?? ''));
 
@@ -76,7 +76,7 @@ final class DeviceClassifier
         }
 
         if (self::containsAny($normalized, self::MOBILE_HINTS)) {
-            return str_contains($normalized, 'android') && ! str_contains($normalized, 'mobile')
+            return str_contains($normalized, 'android') && !str_contains($normalized, 'mobile')
                 ? DeviceClassification::tablet()
                 : DeviceClassification::mobile();
         }

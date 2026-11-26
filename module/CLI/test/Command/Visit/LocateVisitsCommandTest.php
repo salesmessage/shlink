@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\CLI\Command\Visit;
 
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Visit\DownloadGeoLiteDbCommand;
 use Shlinkio\Shlink\CLI\Command\Visit\LocateVisitsCommand;
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
 use Shlinkio\Shlink\Core\Exception\IpCannotBeLocatedException;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
@@ -19,7 +22,7 @@ use Shlinkio\Shlink\Core\Visit\Geolocation\VisitToLocationHelperInterface;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 use Shlinkio\Shlink\IpGeolocation\Exception\WrongIpException;
 use Shlinkio\Shlink\IpGeolocation\Model\Location;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -30,35 +33,31 @@ use function sprintf;
 
 use const PHP_EOL;
 
+#[AllowMockObjectsWithoutExpectations]
 class LocateVisitsCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & VisitLocatorInterface $visitService;
-    private MockObject & VisitToLocationHelperInterface $visitToLocation;
-    private MockObject & Lock\LockInterface $lock;
-    private MockObject & Command $downloadDbCommand;
+    private MockObject&VisitLocatorInterface $visitService;
+    private MockObject&VisitToLocationHelperInterface $visitToLocation;
+    private Stub&Lock\LockInterface $lock;
+    private Stub&Command $downloadDbCommand;
 
     protected function setUp(): void
     {
         $this->visitService = $this->createMock(VisitLocatorInterface::class);
         $this->visitToLocation = $this->createMock(VisitToLocationHelperInterface::class);
 
-        $locker = $this->createMock(Lock\LockFactory::class);
-        $this->lock = $this->createMock(Lock\LockInterface::class);
-        $locker->method('createLock')->with($this->isType('string'), 600.0, false)->willReturn($this->lock);
+        $locker = $this->createStub(Lock\LockFactory::class);
+        $this->lock = $this->createStub(Lock\SharedLockInterface::class);
+        $locker->method('createLock')->willReturn($this->lock);
 
         $command = new LocateVisitsCommand($this->visitService, $this->visitToLocation, $locker);
 
-        $this->downloadDbCommand = $this->createCommandMock(DownloadGeoLiteDbCommand::NAME);
-        $this->commandTester = $this->testerForCommand($command, $this->downloadDbCommand);
+        $this->downloadDbCommand = CliTestUtils::createCommandStub(DownloadGeoLiteDbCommand::NAME);
+        $this->commandTester = CliTestUtils::testerForCommand($command, $this->downloadDbCommand);
     }
 
-    /**
-     * @test
-     * @dataProvider provideArgs
-     */
+    #[Test, DataProvider('provideArgs')]
     public function expectedSetOfVisitsIsProcessedBasedOnArgs(
         int $expectedUnlocatedCalls,
         int $expectedEmptyCalls,
@@ -66,27 +65,34 @@ class LocateVisitsCommandTest extends TestCase
         bool $expectWarningPrint,
         array $args,
     ): void {
-        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor('', '', '1.2.3.4', ''));
-        $location = VisitLocation::fromGeolocation(Location::emptyInstance());
+        $visit = Visit::forValidShortUrl(ShortUrl::createFake(), Visitor::fromParams('', '', '1.2.3.4'));
+        $location = VisitLocation::fromLocation(Location::empty());
         $mockMethodBehavior = $this->invokeHelperMethods($visit, $location);
 
-        $this->lock->method('acquire')->with($this->isFalse())->willReturn(true);
-        $this->visitService->expects($this->exactly($expectedUnlocatedCalls))
-                           ->method('locateUnlocatedVisits')
-                           ->withAnyParameters()
-                           ->willReturnCallback($mockMethodBehavior);
-        $this->visitService->expects($this->exactly($expectedEmptyCalls))
-                           ->method('locateVisitsWithEmptyLocation')
-                           ->withAnyParameters()
-                           ->willReturnCallback($mockMethodBehavior);
-        $this->visitService->expects($this->exactly($expectedAllCalls))
-                           ->method('locateAllVisits')
-                           ->withAnyParameters()
-                           ->willReturnCallback($mockMethodBehavior);
-        $this->visitToLocation->expects(
-            $this->exactly($expectedUnlocatedCalls + $expectedEmptyCalls + $expectedAllCalls),
-        )->method('resolveVisitLocation')->withAnyParameters()->willReturn(Location::emptyInstance());
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_SUCCESS);
+        $this->lock->method('acquire')->willReturn(true);
+        $this->visitService
+            ->expects($this->exactly($expectedUnlocatedCalls))
+            ->method('locateUnlocatedVisits')
+            ->withAnyParameters()
+            ->willReturnCallback($mockMethodBehavior);
+        $this->visitService
+            ->expects($this->exactly($expectedEmptyCalls))
+            ->method('locateVisitsWithEmptyLocation')
+            ->withAnyParameters()
+            ->willReturnCallback($mockMethodBehavior);
+        $this->visitService
+            ->expects($this->exactly($expectedAllCalls))
+            ->method('locateAllVisits')
+            ->withAnyParameters()
+            ->willReturnCallback($mockMethodBehavior);
+        $this->visitToLocation
+            ->expects(
+                $this->exactly($expectedUnlocatedCalls + $expectedEmptyCalls + $expectedAllCalls),
+            )
+            ->method('resolveVisitLocation')
+            ->withAnyParameters()
+            ->willReturn(Location::empty());
+        $this->downloadDbCommand->method('run')->willReturn(Command::SUCCESS);
 
         $this->commandTester->setInputs(['y']);
         $this->commandTester->execute($args);
@@ -100,29 +106,27 @@ class LocateVisitsCommandTest extends TestCase
         }
     }
 
-    public function provideArgs(): iterable
+    public static function provideArgs(): iterable
     {
         yield 'no args' => [1, 0, 0, false, []];
         yield 'retry' => [1, 1, 0, false, ['--retry' => true]];
         yield 'all' => [0, 0, 1, true, ['--retry' => true, '--all' => true]];
     }
 
-    /**
-     * @test
-     * @dataProvider provideIgnoredAddresses
-     */
+    #[Test, DataProvider('provideIgnoredAddresses')]
     public function localhostAndEmptyAddressesAreIgnored(IpCannotBeLocatedException $e, string $message): void
     {
-        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), Visitor::emptyInstance());
-        $location = VisitLocation::fromGeolocation(Location::emptyInstance());
+        $visit = Visit::forValidShortUrl(ShortUrl::createFake(), Visitor::empty());
+        $location = VisitLocation::fromLocation(Location::empty());
 
-        $this->lock->method('acquire')->with($this->isFalse())->willReturn(true);
-        $this->visitService->expects($this->once())
-                           ->method('locateUnlocatedVisits')
-                           ->withAnyParameters()
-                           ->willReturnCallback($this->invokeHelperMethods($visit, $location));
+        $this->lock->method('acquire')->willReturn(true);
+        $this->visitService
+            ->expects($this->once())
+            ->method('locateUnlocatedVisits')
+            ->withAnyParameters()
+            ->willReturnCallback($this->invokeHelperMethods($visit, $location));
         $this->visitToLocation->expects($this->once())->method('resolveVisitLocation')->willThrowException($e);
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_SUCCESS);
+        $this->downloadDbCommand->method('run')->willReturn(Command::SUCCESS);
 
         $this->commandTester->execute([], ['verbosity' => OutputInterface::VERBOSITY_VERBOSE]);
 
@@ -131,27 +135,31 @@ class LocateVisitsCommandTest extends TestCase
         self::assertStringContainsString($message, $output);
     }
 
-    public function provideIgnoredAddresses(): iterable
+    public static function provideIgnoredAddresses(): iterable
     {
         yield 'empty address' => [IpCannotBeLocatedException::forEmptyAddress(), 'Ignored visit with no IP address'];
         yield 'localhost address' => [IpCannotBeLocatedException::forLocalhost(), 'Ignored localhost address'];
     }
 
-    /** @test */
+    #[Test]
     public function errorWhileLocatingIpIsDisplayed(): void
     {
-        $visit = Visit::forValidShortUrl(ShortUrl::createEmpty(), new Visitor('', '', '1.2.3.4', ''));
-        $location = VisitLocation::fromGeolocation(Location::emptyInstance());
+        $visit = Visit::forValidShortUrl(ShortUrl::createFake(), Visitor::fromParams(remoteAddress: '1.2.3.4'));
+        $location = VisitLocation::fromLocation(Location::empty());
 
-        $this->lock->method('acquire')->with($this->isFalse())->willReturn(true);
-        $this->visitService->expects($this->once())
-                           ->method('locateUnlocatedVisits')
-                           ->withAnyParameters()
-                           ->willReturnCallback($this->invokeHelperMethods($visit, $location));
-        $this->visitToLocation->expects($this->once())->method('resolveVisitLocation')->willThrowException(
-            IpCannotBeLocatedException::forError(WrongIpException::fromIpAddress('1.2.3.4')),
-        );
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_SUCCESS);
+        $this->lock->method('acquire')->willReturn(true);
+        $this->visitService
+            ->expects($this->once())
+            ->method('locateUnlocatedVisits')
+            ->withAnyParameters()
+            ->willReturnCallback($this->invokeHelperMethods($visit, $location));
+        $this->visitToLocation
+            ->expects($this->once())
+            ->method('resolveVisitLocation')
+            ->willThrowException(
+                IpCannotBeLocatedException::forError(WrongIpException::fromIpAddress('1.2.3.4')),
+            );
+        $this->downloadDbCommand->method('run')->willReturn(Command::SUCCESS);
 
         $this->commandTester->execute([], ['verbosity' => OutputInterface::VERBOSITY_VERBOSE]);
 
@@ -168,14 +176,14 @@ class LocateVisitsCommandTest extends TestCase
         };
     }
 
-    /** @test */
+    #[Test]
     public function noActionIsPerformedIfLockIsAcquired(): void
     {
-        $this->lock->method('acquire')->with($this->isFalse())->willReturn(false);
+        $this->lock->method('acquire')->willReturn(false);
 
         $this->visitService->expects($this->never())->method('locateUnlocatedVisits');
         $this->visitToLocation->expects($this->never())->method('resolveVisitLocation');
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_SUCCESS);
+        $this->downloadDbCommand->method('run')->willReturn(Command::SUCCESS);
 
         $this->commandTester->execute([], ['verbosity' => OutputInterface::VERBOSITY_VERBOSE]);
         $output = $this->commandTester->getDisplay();
@@ -186,11 +194,11 @@ class LocateVisitsCommandTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function showsProperMessageWhenGeoLiteUpdateFails(): void
     {
-        $this->lock->method('acquire')->with($this->isFalse())->willReturn(true);
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_FAILURE);
+        $this->lock->method('acquire')->willReturn(true);
+        $this->downloadDbCommand->method('run')->willReturn(Command::FAILURE);
         $this->visitService->expects($this->never())->method('locateUnlocatedVisits');
 
         $this->commandTester->execute([]);
@@ -199,11 +207,11 @@ class LocateVisitsCommandTest extends TestCase
         self::assertStringContainsString('It is not possible to locate visits without a GeoLite2 db file.', $output);
     }
 
-    /** @test */
+    #[Test]
     public function providingAllFlagOnItsOwnDisplaysNotice(): void
     {
-        $this->lock->method('acquire')->with($this->isFalse())->willReturn(true);
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_SUCCESS);
+        $this->lock->method('acquire')->willReturn(true);
+        $this->downloadDbCommand->method('run')->willReturn(Command::SUCCESS);
 
         $this->commandTester->execute(['--all' => true]);
         $output = $this->commandTester->getDisplay();
@@ -212,12 +220,12 @@ class LocateVisitsCommandTest extends TestCase
     }
 
     /**
-     * @test
-     * @dataProvider provideAbortInputs
+     * @param list<string> $inputs
      */
+    #[Test, DataProvider('provideAbortInputs')]
     public function processingAllCancelsCommandIfUserDoesNotActivelyAgreeToConfirmation(array $inputs): void
     {
-        $this->downloadDbCommand->method('run')->withAnyParameters()->willReturn(ExitCodes::EXIT_SUCCESS);
+        $this->downloadDbCommand->method('run')->willReturn(Command::SUCCESS);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Execution aborted');
@@ -226,7 +234,7 @@ class LocateVisitsCommandTest extends TestCase
         $this->commandTester->execute(['--all' => true, '--retry' => true]);
     }
 
-    public function provideAbortInputs(): iterable
+    public static function provideAbortInputs(): iterable
     {
         yield 'n' => [['n']];
         yield 'no' => [['no']];

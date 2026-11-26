@@ -7,78 +7,83 @@ namespace Shlinkio\Shlink\Core\Visit;
 use Doctrine\ORM;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Shlinkio\Shlink\Core\BotIp\BotIpMatcherInterface;
+use Shlinkio\Shlink\Core\Config\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\EventDispatcher\Event\UrlVisited;
-use Shlinkio\Shlink\Core\Options\TrackingOptions;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Shlinkio\Shlink\Core\Visit\Model\Visitor;
 
-class VisitsTracker implements VisitsTrackerInterface
+readonly class VisitsTracker implements VisitsTrackerInterface
 {
     public function __construct(
         private ORM\EntityManagerInterface $em,
         private EventDispatcherInterface $eventDispatcher,
         private TrackingOptions $options,
         private BotIpMatcherInterface $botIpMatcher,
-    ) {
-    }
+    ) {}
 
-    public function track(ShortUrl $shortUrl, Visitor $visitor): void
+    public function track(ShortUrl $shortUrl, Visitor $visitor): Visit|null
     {
-        $this->trackVisit(
+        return $this->trackVisit(
             fn (Visitor $v) => Visit::forValidShortUrl($shortUrl, $v, $this->options->anonymizeRemoteAddr),
             $visitor,
         );
     }
 
-    public function trackInvalidShortUrlVisit(Visitor $visitor): void
+    public function trackInvalidShortUrlVisit(Visitor $visitor): Visit|null
     {
-        $this->trackOrphanVisit(
+        return $this->trackOrphanVisit(
             fn (Visitor $v) => Visit::forInvalidShortUrl($v, $this->options->anonymizeRemoteAddr),
             $visitor,
         );
     }
 
-    public function trackBaseUrlVisit(Visitor $visitor): void
+    public function trackBaseUrlVisit(Visitor $visitor): Visit|null
     {
-        $this->trackOrphanVisit(
+        return $this->trackOrphanVisit(
             fn (Visitor $v) => Visit::forBasePath($v, $this->options->anonymizeRemoteAddr),
             $visitor,
         );
     }
 
-    public function trackRegularNotFoundVisit(Visitor $visitor): void
+    public function trackRegularNotFoundVisit(Visitor $visitor): Visit|null
     {
-        $this->trackOrphanVisit(
+        return $this->trackOrphanVisit(
             fn (Visitor $v) => Visit::forRegularNotFound($v, $this->options->anonymizeRemoteAddr),
             $visitor,
         );
     }
 
-    private function trackOrphanVisit(callable $createVisit, Visitor $visitor): void
+    private function trackOrphanVisit(callable $createVisit, Visitor $visitor): Visit|null
     {
-        if (! $this->options->trackOrphanVisits) {
-            return;
+        if (!$this->options->trackOrphanVisits) {
+            return null;
         }
 
-        $this->trackVisit($createVisit, $visitor);
+        return $this->trackVisit($createVisit, $visitor);
     }
 
-    private function trackVisit(callable $createVisit, Visitor $visitor): void
+    /**
+     * @param callable(Visitor $visitor): Visit $createVisit
+     */
+    private function trackVisit(callable $createVisit, Visitor $visitor): Visit|null
     {
         if ($this->options->disableTracking) {
-            return;
+            return null;
         }
 
-        // SWR-26047: checked on the full address, before it is anonymized for storage
-        if (! $visitor->isPotentialBot() && $this->botIpMatcher->isBotAddress($visitor->remoteAddress)) {
+        // Checked on the full address, before it is anonymized for storage (SWR-26047)
+        if (!$visitor->potentialBot && $this->botIpMatcher->isBotAddress($visitor->remoteAddress)) {
             $visitor = $visitor->markAsPotentialBot();
         }
 
         $visit = $createVisit($visitor->normalizeForTrackingOptions($this->options));
-        $this->em->persist($visit);
-        $this->em->flush();
 
-        $this->eventDispatcher->dispatch(UrlVisited::withOriginalIpAddress($visit->getId(), $visitor->remoteAddress));
+        // Wrap persisting the visit in a transaction, so that the ShortUrlVisitsCountTracker performs changes inside
+        // that very same transaction atomically
+        $this->em->wrapInTransaction(fn () => $this->em->persist($visit));
+        $this->eventDispatcher->dispatch(new UrlVisited($visit->getId(), $visitor->remoteAddress));
+
+        return $visit;
     }
 }

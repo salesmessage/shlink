@@ -4,6 +4,12 @@
     xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
     bootstrap="./vendor/autoload.php"
     colors="true"
+    cacheDirectory="build/.phpunit/unit-tests.cache"
+    displayDetailsOnTestsThatTriggerWarnings="true"
+    displayDetailsOnTestsThatTriggerDeprecations="true"
+    displayDetailsOnPhpunitNotices="true"
+    displayDetailsOnPhpunitDeprecations="true"
+    displayDetailsOnTestsThatTriggerNotices="true"
 >
     <testsuites>
         <testsuite name="Core">
@@ -17,17 +23,18 @@
         </testsuite>
     </testsuites>
 
-    <coverage processUncoveredFiles="true">
+    <source>
         <include>
-            <directory suffix=".php">./module/*/src</directory>
+            <directory>./module/*/src</directory>
         </include>
         <exclude>
-            <directory suffix=".php">./module/Core/src/Repository</directory>
-            <directory suffix=".php">./module/Core/src/**/Repository</directory>
-            <directory suffix=".php">./module/Core/src/**/**/Repository</directory>
-            <directory suffix=".php">./module/Core/src/Spec</directory>
-            <directory suffix=".php">./module/Core/src/**/Spec</directory>
-            <directory suffix=".php">./module/Core/src/**/**/Spec</directory>
+            <directory>./module/Core/src/Repository</directory>
+            <directory>./module/Core/src/**/Repository</directory>
+            <directory>./module/Core/src/**/**/Repository</directory>
+            <directory>./module/Core/src/Spec</directory>
+            <directory>./module/Core/src/**/Spec</directory>
+            <directory>./module/Core/src/**/**/Spec</directory>
+            <file>./module/Core/src/Visit/Listener/*.php</file>
         </exclude>
-    </coverage>
+    </source>
 </phpunit>

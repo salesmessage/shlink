@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\BotIp;
 
 use Cake\Chronos\Chronos;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -12,16 +15,17 @@ use RuntimeException;
 use Shlinkio\Shlink\Core\BotIp\BotIpMatcher;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 use Shlinkio\Shlink\Core\BotIp\Repository\BotIpRangeRepositoryInterface;
-use Shlinkio\Shlink\Core\Options\BotIpOptions;
+use Shlinkio\Shlink\Core\Config\Options\BotIpOptions;
 
+#[AllowMockObjectsWithoutExpectations]
 class BotIpMatcherTest extends TestCase
 {
-    private const RANGES = [
+    private const array RANGES = [
         'google' => ['66.249.80.192/27', '192.178.8.0/27', '2001:4860:4801:10::/64'],
     ];
 
-    private MockObject & BotIpRangeRepositoryInterface $repo;
-    private MockObject & LoggerInterface $logger;
+    private MockObject&BotIpRangeRepositoryInterface $repo;
+    private MockObject&LoggerInterface $logger;
 
     protected function setUp(): void
     {
@@ -34,18 +38,15 @@ class BotIpMatcherTest extends TestCase
         Chronos::setTestNow();
     }
 
-    /**
-     * @test
-     * @dataProvider provideAddresses
-     */
-    public function fullAddressIsMatchedAgainstEveryRange(?string $address, bool $expected): void
+    #[Test, DataProvider('provideAddresses')]
+    public function fullAddressIsMatchedAgainstEveryRange(string|null $address, bool $expected): void
     {
         $this->repo->method('findAllCidrsBySource')->willReturn(self::RANGES);
 
         self::assertEquals($expected, $this->matcher()->isBotAddress($address));
     }
 
-    public function provideAddresses(): iterable
+    public static function provideAddresses(): iterable
     {
         yield 'Google fetcher' => ['66.249.80.201', true];
         yield 'Google fetcher IPv6' => ['2001:4860:4801:10::1', true];
@@ -54,10 +55,7 @@ class BotIpMatcherTest extends TestCase
         yield 'not an address' => ['unknown', false];
     }
 
-    /**
-     * @test
-     * @dataProvider provideAnonymizedAddresses
-     */
+    #[Test, DataProvider('provideAnonymizedAddresses')]
     public function anonymizedAddressIsMatchedByItsNetwork(string $address, BotIpSource $source, bool $expected): void
     {
         $this->repo->method('findAllCidrsBySource')->willReturn(self::RANGES);
@@ -65,7 +63,7 @@ class BotIpMatcherTest extends TestCase
         self::assertEquals($expected, $this->matcher()->isInBotNetwork($address, $source));
     }
 
-    public function provideAnonymizedAddresses(): iterable
+    public static function provideAnonymizedAddresses(): iterable
     {
         yield 'Google network, block not at .0' => ['66.249.80.0', BotIpSource::GOOGLE, true];
         yield 'Google network, block at .0' => ['192.178.8.0', BotIpSource::GOOGLE, true];
@@ -73,7 +71,7 @@ class BotIpMatcherTest extends TestCase
         yield 'IPv6 is not matched by network' => ['2001:4860:4801:10::', BotIpSource::GOOGLE, false];
     }
 
-    /** @test */
+    #[Test]
     public function rangesAreReadOncePerInterval(): void
     {
         $this->repo->expects($this->exactly(2))->method('findAllCidrsBySource')->willReturn(self::RANGES);
@@ -87,13 +85,19 @@ class BotIpMatcherTest extends TestCase
         $matcher->isBotAddress('66.249.80.201');
     }
 
-    /** @test */
+    #[Test]
     public function lastKnownRangesAreKeptWhenTheyCannotBeRead(): void
     {
-        $this->repo->expects($this->exactly(2))->method('findAllCidrsBySource')->willReturnOnConsecutiveCalls(
-            self::RANGES,
-            $this->throwException(new RuntimeException('db down')),
-        );
+        $calls = 0;
+        $this->repo
+            ->expects($this->exactly(2))
+            ->method('findAllCidrsBySource')
+            ->willReturnCallback(
+                static function () use (&$calls): array {
+                    $calls++;
+                    return $calls === 1 ? self::RANGES : throw new RuntimeException('db down');
+                },
+            );
         $this->logger->expects($this->once())->method('error');
         $matcher = $this->matcher();
 
@@ -103,7 +107,7 @@ class BotIpMatcherTest extends TestCase
         self::assertTrue($matcher->isBotAddress('66.249.80.201'));
     }
 
-    /** @test */
+    #[Test]
     public function noRangesMeansNoBots(): void
     {
         $this->repo->method('findAllCidrsBySource')->willReturn([]);

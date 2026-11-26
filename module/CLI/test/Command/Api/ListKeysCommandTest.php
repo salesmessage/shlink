@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\CLI\Command\Api;
 
 use Cake\Chronos\Chronos;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\Api\ListKeysCommand;
@@ -13,26 +15,21 @@ use Shlinkio\Shlink\Rest\ApiKey\Model\ApiKeyMeta;
 use Shlinkio\Shlink\Rest\ApiKey\Model\RoleDefinition;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 use Shlinkio\Shlink\Rest\Service\ApiKeyServiceInterface;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class ListKeysCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & ApiKeyServiceInterface $apiKeyService;
+    private MockObject&ApiKeyServiceInterface $apiKeyService;
 
     protected function setUp(): void
     {
         $this->apiKeyService = $this->createMock(ApiKeyServiceInterface::class);
-        $this->commandTester = $this->testerForCommand(new ListKeysCommand($this->apiKeyService));
+        $this->commandTester = CliTestUtils::testerForCommand(new ListKeysCommand($this->apiKeyService));
     }
 
-    /**
-     * @test
-     * @dataProvider provideKeysAndOutputs
-     */
+    #[Test, DataProvider('provideKeysAndOutputs')]
     public function returnsExpectedOutput(array $keys, bool $enabledOnly, string $expected): void
     {
         $this->apiKeyService->expects($this->once())->method('listKeys')->with($enabledOnly)->willReturn($keys);
@@ -43,105 +40,105 @@ class ListKeysCommandTest extends TestCase
         self::assertEquals($expected, $output);
     }
 
-    public function provideKeysAndOutputs(): iterable
+    public static function provideKeysAndOutputs(): iterable
     {
         $dateInThePast = Chronos::createFromFormat('Y-m-d H:i:s', '2020-01-01 00:00:00');
 
         yield 'all keys' => [
             [
                 $apiKey1 = ApiKey::create()->disable(),
-                $apiKey2 = ApiKey::fromMeta(ApiKeyMeta::withExpirationDate($dateInThePast)),
+                $apiKey2 = ApiKey::fromMeta(ApiKeyMeta::fromParams(expirationDate: $dateInThePast)),
                 $apiKey3 = ApiKey::create(),
             ],
             false,
             <<<OUTPUT
-            +--------------------------------------+------+------------+---------------------------+-------+
-            | Key                                  | Name | Is enabled | Expiration date           | Roles |
-            +--------------------------------------+------+------------+---------------------------+-------+
-            | {$apiKey1} | -    | ---        | -                         | Admin |
-            +--------------------------------------+------+------------+---------------------------+-------+
-            | {$apiKey2} | -    | ---        | 2020-01-01T00:00:00+00:00 | Admin |
-            +--------------------------------------+------+------------+---------------------------+-------+
-            | {$apiKey3} | -    | +++        | -                         | Admin |
-            +--------------------------------------+------+------------+---------------------------+-------+
+                +--------------------------------------+------------+---------------------------+-------+
+                | Name                                 | Is enabled | Expiration date           | Roles |
+                +--------------------------------------+------------+---------------------------+-------+
+                | {$apiKey1->name} | ---        | -                         | Admin |
+                +--------------------------------------+------------+---------------------------+-------+
+                | {$apiKey2->name} | ---        | 2020-01-01T00:00:00+00:00 | Admin |
+                +--------------------------------------+------------+---------------------------+-------+
+                | {$apiKey3->name} | +++        | -                         | Admin |
+                +--------------------------------------+------------+---------------------------+-------+
 
-            OUTPUT,
+                OUTPUT,
         ];
         yield 'enabled keys' => [
             [$apiKey1 = ApiKey::create()->disable(), $apiKey2 = ApiKey::create()],
             true,
             <<<OUTPUT
-            +--------------------------------------+------+-----------------+-------+
-            | Key                                  | Name | Expiration date | Roles |
-            +--------------------------------------+------+-----------------+-------+
-            | {$apiKey1} | -    | -               | Admin |
-            +--------------------------------------+------+-----------------+-------+
-            | {$apiKey2} | -    | -               | Admin |
-            +--------------------------------------+------+-----------------+-------+
+                +--------------------------------------+-----------------+-------+
+                | Name                                 | Expiration date | Roles |
+                +--------------------------------------+-----------------+-------+
+                | {$apiKey1->name} | -               | Admin |
+                +--------------------------------------+-----------------+-------+
+                | {$apiKey2->name} | -               | Admin |
+                +--------------------------------------+-----------------+-------+
 
-            OUTPUT,
+                OUTPUT,
         ];
         yield 'with roles' => [
             [
                 $apiKey1 = ApiKey::create(),
-                $apiKey2 = $this->apiKeyWithRoles([RoleDefinition::forAuthoredShortUrls()]),
-                $apiKey3 = $this->apiKeyWithRoles(
-                    [RoleDefinition::forDomain($this->domainWithId(Domain::withAuthority('example.com')))],
+                $apiKey2 = self::apiKeyWithRoles([RoleDefinition::forAuthoredShortUrls()]),
+                $apiKey3 = self::apiKeyWithRoles(
+                    [RoleDefinition::forDomain(self::domainWithId(Domain::withAuthority('example.com')))],
                 ),
                 $apiKey4 = ApiKey::create(),
-                $apiKey5 = $this->apiKeyWithRoles([
+                $apiKey5 = self::apiKeyWithRoles([
                     RoleDefinition::forAuthoredShortUrls(),
-                    RoleDefinition::forDomain($this->domainWithId(Domain::withAuthority('example.com'))),
+                    RoleDefinition::forDomain(self::domainWithId(Domain::withAuthority('example.com'))),
                 ]),
                 $apiKey6 = ApiKey::create(),
             ],
             true,
             <<<OUTPUT
-            +--------------------------------------+------+-----------------+--------------------------+
-            | Key                                  | Name | Expiration date | Roles                    |
-            +--------------------------------------+------+-----------------+--------------------------+
-            | {$apiKey1} | -    | -               | Admin                    |
-            +--------------------------------------+------+-----------------+--------------------------+
-            | {$apiKey2} | -    | -               | Author only              |
-            +--------------------------------------+------+-----------------+--------------------------+
-            | {$apiKey3} | -    | -               | Domain only: example.com |
-            +--------------------------------------+------+-----------------+--------------------------+
-            | {$apiKey4} | -    | -               | Admin                    |
-            +--------------------------------------+------+-----------------+--------------------------+
-            | {$apiKey5} | -    | -               | Author only              |
-            |                                      |      |                 | Domain only: example.com |
-            +--------------------------------------+------+-----------------+--------------------------+
-            | {$apiKey6} | -    | -               | Admin                    |
-            +--------------------------------------+------+-----------------+--------------------------+
+                +--------------------------------------+-----------------+--------------------------+
+                | Name                                 | Expiration date | Roles                    |
+                +--------------------------------------+-----------------+--------------------------+
+                | {$apiKey1->name} | -               | Admin                    |
+                +--------------------------------------+-----------------+--------------------------+
+                | {$apiKey2->name} | -               | Author only              |
+                +--------------------------------------+-----------------+--------------------------+
+                | {$apiKey3->name} | -               | Domain only: example.com |
+                +--------------------------------------+-----------------+--------------------------+
+                | {$apiKey4->name} | -               | Admin                    |
+                +--------------------------------------+-----------------+--------------------------+
+                | {$apiKey5->name} | -               | Author only              |
+                |                                      |                 | Domain only: example.com |
+                +--------------------------------------+-----------------+--------------------------+
+                | {$apiKey6->name} | -               | Admin                    |
+                +--------------------------------------+-----------------+--------------------------+
 
-            OUTPUT,
+                OUTPUT,
         ];
         yield 'with names' => [
             [
-                $apiKey1 = ApiKey::fromMeta(ApiKeyMeta::withName('Alice')),
-                $apiKey2 = ApiKey::fromMeta(ApiKeyMeta::withName('Alice and Bob')),
-                $apiKey3 = ApiKey::fromMeta(ApiKeyMeta::withName('')),
+                ApiKey::fromMeta(ApiKeyMeta::fromParams(name: 'Alice')),
+                ApiKey::fromMeta(ApiKeyMeta::fromParams(name: 'Alice and Bob')),
+                $apiKey3 = ApiKey::fromMeta(ApiKeyMeta::fromParams(name: '')),
                 $apiKey4 = ApiKey::create(),
             ],
             true,
             <<<OUTPUT
-            +--------------------------------------+---------------+-----------------+-------+
-            | Key                                  | Name          | Expiration date | Roles |
-            +--------------------------------------+---------------+-----------------+-------+
-            | {$apiKey1} | Alice         | -               | Admin |
-            +--------------------------------------+---------------+-----------------+-------+
-            | {$apiKey2} | Alice and Bob | -               | Admin |
-            +--------------------------------------+---------------+-----------------+-------+
-            | {$apiKey3} |               | -               | Admin |
-            +--------------------------------------+---------------+-----------------+-------+
-            | {$apiKey4} | -             | -               | Admin |
-            +--------------------------------------+---------------+-----------------+-------+
+                +--------------------------------------+-----------------+-------+
+                | Name                                 | Expiration date | Roles |
+                +--------------------------------------+-----------------+-------+
+                | Alice                                | -               | Admin |
+                +--------------------------------------+-----------------+-------+
+                | Alice and Bob                        | -               | Admin |
+                +--------------------------------------+-----------------+-------+
+                | {$apiKey3->name} | -               | Admin |
+                +--------------------------------------+-----------------+-------+
+                | {$apiKey4->name} | -               | Admin |
+                +--------------------------------------+-----------------+-------+
 
-            OUTPUT,
+                OUTPUT,
         ];
     }
 
-    private function apiKeyWithRoles(array $roles): ApiKey
+    private static function apiKeyWithRoles(array $roles): ApiKey
     {
         $apiKey = ApiKey::create();
         foreach ($roles as $role) {
@@ -151,7 +148,7 @@ class ListKeysCommandTest extends TestCase
         return $apiKey;
     }
 
-    private function domainWithId(Domain $domain): Domain
+    private static function domainWithId(Domain $domain): Domain
     {
         $domain->setId('1');
         return $domain;

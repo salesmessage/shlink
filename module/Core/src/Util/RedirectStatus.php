@@ -1,8 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shlinkio\Shlink\Core\Util;
 
-use function Functional\contains;
+use Fig\Http\Message\RequestMethodInterface;
+use Mezzio\Router\Route;
+
+use function Shlinkio\Shlink\Core\ArrayUtils\contains;
 
 enum RedirectStatus: int
 {
@@ -13,11 +18,18 @@ enum RedirectStatus: int
 
     public function allowsCache(): bool
     {
-        return contains([self::STATUS_301, self::STATUS_308], $this);
+        return contains($this, [self::STATUS_301, self::STATUS_308]);
     }
 
-    public function isLegacyStatus(): bool
+    /**
+     * @return array<RequestMethodInterface::METHOD_*>|Route::HTTP_METHOD_ANY
+     */
+    public function allowedHttpMethods(): array|null
     {
-        return contains([self::STATUS_301, self::STATUS_302], $this);
+        return (
+            contains($this, [self::STATUS_301, self::STATUS_302])
+                ? [RequestMethodInterface::METHOD_GET]
+                : Route::HTTP_METHOD_ANY
+        );
     }
 }

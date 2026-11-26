@@ -10,24 +10,23 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Shlinkio\Shlink\Core\Config\Options\CorsOptions;
 
 use function implode;
 
-class CrossDomainMiddleware implements MiddlewareInterface, RequestMethodInterface
+readonly class CrossDomainMiddleware implements MiddlewareInterface, RequestMethodInterface
 {
-    public function __construct(private array $config)
-    {
-    }
+    public function __construct(private CorsOptions $options) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $response = $handler->handle($request);
-        if (! $request->hasHeader('Origin')) {
+        if (!$request->hasHeader('Origin')) {
             return $response;
         }
 
         // Add Allow-Origin header
-        $response = $response->withHeader('Access-Control-Allow-Origin', '*');
+        $response = $this->options->responseWithCorsHeaders($request, $response);
         if ($request->getMethod() !== self::METHOD_OPTIONS) {
             return $response;
         }
@@ -37,14 +36,11 @@ class CrossDomainMiddleware implements MiddlewareInterface, RequestMethodInterfa
 
     private function addOptionsHeaders(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $corsHeaders = [
-            'Access-Control-Allow-Methods' => [$this->resolveCorsAllowedMethods($response)],
-            'Access-Control-Allow-Headers' => [$request->getHeaderLine('Access-Control-Request-Headers')],
-            'Access-Control-Max-Age' => [(string) $this->config['max_age']],
-        ];
-
         // Options requests should always be empty and have a 204 status code
-        return EmptyResponse::withHeaders([...$response->getHeaders(), ...$corsHeaders]);
+        return EmptyResponse::withHeaders($response->getHeaders())
+            ->withHeader('Access-Control-Allow-Methods', $this->resolveCorsAllowedMethods($response))
+            ->withHeader('Access-Control-Allow-Headers', $request->getHeaderLine('Access-Control-Request-Headers'))
+            ->withHeader('Access-Control-Max-Age', (string) $this->options->maxAge);
     }
 
     private function resolveCorsAllowedMethods(ResponseInterface $response): string

@@ -5,33 +5,52 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\Core\ShortUrl\Helper;
 
 use GuzzleHttp\Psr7\Query;
+use GuzzleHttp\Psr7\Uri;
 use Laminas\Stdlib\ArrayUtils;
-use League\Uri\Uri;
-use Shlinkio\Shlink\Core\Options\TrackingOptions;
+use Psr\Http\Message\ServerRequestInterface;
+use Shlinkio\Shlink\Core\Config\Options\TrackingOptions;
+use Shlinkio\Shlink\Core\RedirectRule\ShortUrlRedirectionResolverInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 
+use function in_array;
 use function sprintf;
 
-class ShortUrlRedirectionBuilder implements ShortUrlRedirectionBuilderInterface
-{
-    public function __construct(private TrackingOptions $trackingOptions)
-    {
-    }
+use const Shlinkio\Shlink\SENSITIVE_HOSTS;
 
-    public function buildShortUrlRedirect(ShortUrl $shortUrl, array $currentQuery, ?string $extraPath = null): string
-    {
-        $uri = Uri::createFromString($shortUrl->getLongUrl());
-        $shouldForwardQuery = $shortUrl->forwardQuery();
+readonly class ShortUrlRedirectionBuilder implements ShortUrlRedirectionBuilderInterface
+{
+    public function __construct(
+        private TrackingOptions $trackingOptions,
+        private ShortUrlRedirectionResolverInterface $redirectionResolver,
+    ) {}
+
+    public function buildShortUrlRedirect(
+        ShortUrl $shortUrl,
+        ServerRequestInterface $request,
+        string|null $extraPath = null,
+    ): string {
+        $uri = new Uri($this->redirectionResolver->resolveLongUrl($shortUrl, $request));
+        // Long URLs on sensitive hosts get no query of the visit
+        $shouldForwardQuery = $shortUrl->forwardQuery && !in_array($uri->getHost(), SENSITIVE_HOSTS, strict: true);
+        $baseQueryString = $uri->getQuery();
+        $basePath = $uri->getPath();
+
+        // Get current query by manually parsing query string, instead of using $request->getQueryParams().
+        // That prevents some weird PHP logic in which some characters in param names are converted to ensure resulting
+        // names are valid variable names.
+        $currentQuery = Query::parse($request->getUri()->getQuery());
 
         return $uri
-            ->withQuery($shouldForwardQuery ? $this->resolveQuery($uri, $currentQuery) : $uri->getQuery())
-            ->withPath($this->resolvePath($uri, $extraPath))
+            ->withQuery(
+                $shouldForwardQuery ? $this->resolveQuery($baseQueryString, $currentQuery) : $baseQueryString,
+            )
+            ->withPath($this->resolvePath($basePath, $extraPath))
             ->__toString();
     }
 
-    private function resolveQuery(Uri $uri, array $currentQuery): ?string
+    private function resolveQuery(string $baseQueryString, array $currentQuery): string
     {
-        $hardcodedQuery = Query::parse($uri->getQuery() ?? '');
+        $hardcodedQuery = Query::parse($baseQueryString);
 
         $disableTrackParam = $this->trackingOptions->disableTrackParam;
         if ($disableTrackParam !== null) {
@@ -39,14 +58,13 @@ class ShortUrlRedirectionBuilder implements ShortUrlRedirectionBuilderInterface
         }
 
         // We want to merge preserving numeric keys, as some params might be numbers
-        $mergedQuery = ArrayUtils::merge($hardcodedQuery, $currentQuery, true);
+        $mergedQuery = ArrayUtils::merge($hardcodedQuery, $currentQuery, preserveNumericKeys: true);
 
-        return empty($mergedQuery) ? null : Query::build($mergedQuery);
+        return Query::build($mergedQuery);
     }
 
-    private function resolvePath(Uri $uri, ?string $extraPath): string
+    private function resolvePath(string $basePath, string|null $extraPath): string
     {
-        $hardcodedPath = $uri->getPath();
-        return $extraPath === null ? $hardcodedPath : sprintf('%s%s', $hardcodedPath, $extraPath);
+        return $extraPath === null ? $basePath : sprintf('%s%s', $basePath, $extraPath);
     }
 }

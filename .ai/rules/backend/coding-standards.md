@@ -1,5 +1,5 @@
 ---
-description: Use this rule for any backend PHP change - coding standards (phpcs ruleset, logging, strictness) and architecture principles (SOLID, layering, dependency direction).
+description: Use this rule for any backend PHP change - coding standards (mago rules, logging, strictness) and architecture principles (SOLID, layering, dependency direction).
 ---
 
 > **Shared rule.** Copied from `core/.ai/rules/backend/coding-standards.md` and kept in sync with it by hand.
@@ -13,46 +13,16 @@ description: Use this rule for any backend PHP change - coding standards (phpcs 
   - *In this repo*: there is no global helper to fall back on anyway. The logger is a container service named `'Logger_Shlink'`, listed among a service's dependencies in the `ConfigAbstractFactory` array in a `dependencies.config.php` and type-hinted as `LoggerInterface` in the constructor. Follow that; do not instantiate a logger.
 - Do not use strict array-emptiness checks like `$var === []`; use `empty($var)` instead.
 
-### In this repo: the enforced ruleset
+### In this repo: the enforced tools
 
-`composer cs` runs phpcs with the `Shlinkio` standard (`vendor/shlinkio/php-coding-standard`), over `bin`, `module`, `config`, `data/migrations`, `docker/config` and `public/index.php`. It is PSR-12 plus, notably:
+Upstream 5.x replaced phpcs and phpstan with [mago](https://mago.carthage.software/). `mago.toml` extends `vendor/shlinkio/shlink-mago-config/mago.toml` over `bin`, `config` and `module`:
 
-- `declare(strict_types=1);` in every PHP file, under the opening tag, with blank lines around it.
-- **Every global function and constant must be imported**: `use function in_array;`, `use const PHP_EOL;`. Fallback global names are an error, and this is the single most common failure in fork-authored code.
-- Import blocks are separated by one blank line in the order classes / functions / constants, and each block is **alphabetically sorted**.
-- Trailing commas in multi-line arrays, calls and declarations. Short array syntax only.
-- Strict comparisons only - `==` and `!=` are errors.
-- Single quotes unless the string needs interpolation.
-- Class constants carry a visibility modifier; parameters, returns and properties carry type hints (`iterable`/`array` value types excepted).
-- Non-capturing catch (`catch (SomeException)`) where the exception variable is unused.
-- No `@param`/`@return` annotation that only restates a native type hint - phpcs flags it as useless. Annotate only to add information the signature cannot express (array shapes, generics, `@throws`).
-- Union types written without spaces and with `null` last: `string|int|null`.
+- `composer cs` = `mago lint` + `mago format --check`; `composer cs:fix` applies the fixes. Format only the files you change.
+- `composer analyze` = `mago analyze` with `APP_ENV=test`, filtered by `mago-analyze-baseline.toml`.
 
-Match the surrounding upstream style beyond that: `final` where the class is not extended, `readonly` promoted constructor properties, enums for closed sets, and named static constructors (`fromRequest`, `forValidShortUrl`) rather than public constructors on value objects.
+The baseline is a suppression list for upstream's code, not a target: never regenerate it. When a finding cannot be fixed in the code, put `// @mago-expect <category>:<code> (reason)` on the line above it, as in `module/CLI/src/Command/Visit/VisitsCommandUtils.php`. `composer.lock` pins `shlinkio/shlink-mago-config` to v1.1.1: v1.2.0 turns on `check-missing-override` and flags upstream's whole test tree.
 
-`composer stan` is phpstan **level 8** over `module/*/src`, `module/*/test*`, `module/*/config`, `config`, `docker/config` and `data/migrations`, with the Doctrine, Symfony and PHPUnit extensions loaded.
-
-### In this repo: the unit suite is green, phpcs is not
-
-As of the last verified run (2026-08-31, branch `SWR-11033`):
-
-| Check | Baseline state |
-|---|---|
-| `composer test:unit` | **green** - 935 tests, 2821 assertions, 0 failures |
-| `composer cs` | 55 errors (+2 warnings) in 9 files, all auto-fixable. 43 of them are in `module/CLI/src/Command/Import/DataImportCommand.php`; the rest are single-error files, incl. `module/Core/src/Action/RedirectAction.php` (4), `module/CLI/src/Command/Db/PostMigrationCommand.php`, `module/Core/functions/functions.php`, `config/autoload/dependencies.global.php`, both `data/migrations/Version202512*.php` |
-| `composer stan` | **green** - 34 pre-existing errors across 12 untouched files are captured in `phpstan-baseline.neon`. 17 of them were surfaced by the phpstan 2.x upgrade, which turned several formerly opt-in checks on by default |
-
-`phpstan-baseline.neon` is a suppression list, not a target. Never regenerate it to silence an error your change introduced - fix the code. Do delete an entry when your change genuinely fixes the error it covers, because phpstan fails on a baseline pattern that no longer matches anything.
-
-So judge your change on the **files you touched**, not on a whole-repo run:
-
-```bash
-php vendor/bin/phpcs  <paths you changed>
-php vendor/bin/phpcbf <paths you changed>
-APP_ENV=test php vendor/bin/phpstan analyse <paths you changed> --level=8
-```
-
-Leaving a file you touched cleaner than you found it is welcome; a sweep across files your ticket does not touch is not - it is merge cost against upstream for no behavior gain.
+Upstream style to match: `declare(strict_types=1);`, imported global functions and constants (`use function sprintf;`), strict comparisons, trailing commas, `final readonly` value objects with named static constructors (`fromRawData`, `fromRequest`), enums for closed sets, `#[Override]` where a method overrides.
 
 ## Architecture principles
 

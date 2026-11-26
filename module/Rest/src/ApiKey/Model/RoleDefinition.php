@@ -9,9 +9,7 @@ use Shlinkio\Shlink\Rest\ApiKey\Role;
 
 final class RoleDefinition
 {
-    private function __construct(public readonly Role $role, public readonly array $meta)
-    {
-    }
+    private function __construct(public readonly Role $role, public readonly array $meta) {}
 
     public static function forAuthoredShortUrls(): self
     {
@@ -22,7 +20,12 @@ final class RoleDefinition
     {
         return new self(
             Role::DOMAIN_SPECIFIC,
-            ['domain_id' => $domain->getId(), 'authority' => $domain->getAuthority()],
+            ['domain_id' => $domain->getId(), 'authority' => $domain->authority],
         );
+    }
+
+    public static function forNoOrphanVisits(): self
+    {
+        return new self(Role::NO_ORPHAN_VISITS, []);
     }
 }

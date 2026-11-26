@@ -8,12 +8,14 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Shlinkio\Shlink\Common\UpdatePublishing\PublishingHelperInterface;
 use Shlinkio\Shlink\Common\UpdatePublishing\Update;
-use Shlinkio\Shlink\Core\EventDispatcher\Event\VisitLocated;
+use Shlinkio\Shlink\Core\Config\Options\RealTimeUpdatesOptions;
+use Shlinkio\Shlink\Core\EventDispatcher\Event\UrlVisited;
 use Shlinkio\Shlink\Core\EventDispatcher\PublishingUpdatesGeneratorInterface;
+use Shlinkio\Shlink\Core\EventDispatcher\Topic;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Throwable;
 
-use function Functional\each;
+use function array_walk;
 
 abstract class AbstractNotifyVisitListener extends AbstractAsyncListener
 {
@@ -22,12 +24,12 @@ abstract class AbstractNotifyVisitListener extends AbstractAsyncListener
         private readonly PublishingUpdatesGeneratorInterface $updatesGenerator,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
-    ) {
-    }
+        private readonly RealTimeUpdatesOptions $realTimeUpdatesOptions,
+    ) {}
 
-    public function __invoke(VisitLocated $visitLocated): void
+    public function __invoke(UrlVisited $visitLocated): void
     {
-        if (! $this->isEnabled()) {
+        if (!$this->isEnabled()) {
             return;
         }
 
@@ -46,7 +48,7 @@ abstract class AbstractNotifyVisitListener extends AbstractAsyncListener
         $updates = $this->determineUpdatesForVisit($visit);
 
         try {
-            each($updates, fn (Update $update) => $this->publishingHelper->publishUpdate($update));
+            array_walk($updates, fn (Update $update) => $this->publishingHelper->publishUpdate($update));
         } catch (Throwable $e) {
             $this->logger->debug(
                 'Error while trying to notify {name} with new visit. {e}',
@@ -61,12 +63,21 @@ abstract class AbstractNotifyVisitListener extends AbstractAsyncListener
     protected function determineUpdatesForVisit(Visit $visit): array
     {
         if ($visit->isOrphan()) {
-            return [$this->updatesGenerator->newOrphanVisitUpdate($visit)];
+            return (
+                $this->realTimeUpdatesOptions->isTopicEnabled(Topic::NEW_ORPHAN_VISIT)
+                    ? [$this->updatesGenerator->newOrphanVisitUpdate($visit)]
+                    : []
+            );
         }
 
-        return [
-            $this->updatesGenerator->newShortUrlVisitUpdate($visit),
-            $this->updatesGenerator->newVisitUpdate($visit),
-        ];
+        $topics = [];
+        if ($this->realTimeUpdatesOptions->isTopicEnabled(Topic::NEW_SHORT_URL_VISIT)) {
+            $topics[] = $this->updatesGenerator->newShortUrlVisitUpdate($visit);
+        }
+        if ($this->realTimeUpdatesOptions->isTopicEnabled(Topic::NEW_VISIT)) {
+            $topics[] = $this->updatesGenerator->newVisitUpdate($visit);
+        }
+
+        return $topics;
     }
 }

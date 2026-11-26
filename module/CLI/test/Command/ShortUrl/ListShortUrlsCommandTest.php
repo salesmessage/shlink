@@ -5,53 +5,58 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\CLI\Command\ShortUrl;
 
 use Cake\Chronos\Chronos;
+use CuyZ\Valinor\MapperBuilder;
 use Pagerfanta\Adapter\ArrayAdapter;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\CLI\Command\ShortUrl\ListShortUrlsCommand;
 use Shlinkio\Shlink\Common\Paginator\Paginator;
+use Shlinkio\Shlink\Core\Model\Ordering;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifier;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlCreation;
 use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlsParams;
+use Shlinkio\Shlink\Core\ShortUrl\Model\ShortUrlWithDeps;
 use Shlinkio\Shlink\Core\ShortUrl\Model\TagsMode;
 use Shlinkio\Shlink\Core\ShortUrl\ShortUrlListServiceInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Transformer\ShortUrlDataTransformer;
 use Shlinkio\Shlink\Rest\ApiKey\Model\ApiKeyMeta;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
-use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
+use ShlinkioTest\Shlink\CLI\Util\CliTestUtils;
 use Symfony\Component\Console\Tester\CommandTester;
-
-use function count;
-use function explode;
 
 class ListShortUrlsCommandTest extends TestCase
 {
-    use CliTestUtilsTrait;
-
     private CommandTester $commandTester;
-    private MockObject & ShortUrlListServiceInterface $shortUrlService;
+    private MockObject&ShortUrlListServiceInterface $shortUrlService;
 
     protected function setUp(): void
     {
         $this->shortUrlService = $this->createMock(ShortUrlListServiceInterface::class);
-        $command = new ListShortUrlsCommand($this->shortUrlService, new ShortUrlDataTransformer(
-            new ShortUrlStringifier([]),
-        ));
-        $this->commandTester = $this->testerForCommand($command);
+        $command = new ListShortUrlsCommand(
+            $this->shortUrlService,
+            new ShortUrlDataTransformer(new ShortUrlStringifier()),
+            new MapperBuilder()->allowSuperfluousKeys()->mapper(),
+        );
+        $this->commandTester = CliTestUtils::testerForCommand($command);
     }
 
-    /** @test */
+    #[Test]
     public function loadingMorePagesCallsListMoreTimes(): void
     {
         // The paginator will return more than one page
         $data = [];
         for ($i = 0; $i < 50; $i++) {
-            $data[] = ShortUrl::withLongUrl('url_' . $i);
+            $data[] = ShortUrlWithDeps::fromShortUrl(ShortUrl::withLongUrl('https://url_' . $i));
         }
 
-        $this->shortUrlService->expects($this->exactly(3))->method('listShortUrls')->withAnyParameters()
-            ->willReturnCallback(fn () => new Paginator(new ArrayAdapter($data)));
+        $this->shortUrlService
+            ->expects($this->exactly(3))
+            ->method('listShortUrls')
+            ->withAnyParameters()
+            ->willReturnCallback(static fn () => new Paginator(new ArrayAdapter($data)));
 
         $this->commandTester->setInputs(['y', 'y', 'n']);
         $this->commandTester->execute([]);
@@ -63,18 +68,22 @@ class ListShortUrlsCommandTest extends TestCase
         self::assertStringNotContainsString('Continue with page 5?', $output);
     }
 
-    /** @test */
+    #[Test]
     public function havingMorePagesButAnsweringNoCallsListJustOnce(): void
     {
         // The paginator will return more than one page
         $data = [];
         for ($i = 0; $i < 30; $i++) {
-            $data[] = ShortUrl::withLongUrl('url_' . $i);
+            $data[] = ShortUrlWithDeps::fromShortUrl(ShortUrl::withLongUrl('https://url_' . $i));
         }
 
-        $this->shortUrlService->expects($this->once())->method('listShortUrls')->with(
-            ShortUrlsParams::emptyInstance(),
-        )->willReturn(new Paginator(new ArrayAdapter($data)));
+        $this->shortUrlService
+            ->expects($this->once())
+            ->method('listShortUrls')
+            ->with(
+                new ShortUrlsParams(),
+            )
+            ->willReturn(new Paginator(new ArrayAdapter($data)));
 
         $this->commandTester->setInputs(['n']);
         $this->commandTester->execute([]);
@@ -89,136 +98,187 @@ class ListShortUrlsCommandTest extends TestCase
         self::assertStringNotContainsString('Continue with page 3?', $output);
     }
 
-    /** @test */
+    #[Test]
     public function passingPageWillMakeListStartOnThatPage(): void
     {
         $page = 5;
-        $this->shortUrlService->expects($this->once())->method('listShortUrls')->with(
-            ShortUrlsParams::fromRawData(['page' => $page]),
-        )->willReturn(new Paginator(new ArrayAdapter([])));
+        $this->shortUrlService
+            ->expects($this->once())
+            ->method('listShortUrls')
+            ->with(
+                new ShortUrlsParams(page: $page),
+            )
+            ->willReturn(new Paginator(new ArrayAdapter([])));
 
         $this->commandTester->setInputs(['y']);
         $this->commandTester->execute(['--page' => $page]);
     }
 
-    /**
-     * @test
-     * @dataProvider provideOptionalFlags
-     */
+    #[Test, DataProvider('provideOptionalFlags')]
     public function provideOptionalFlagsMakesNewColumnsToBeIncluded(
         array $input,
-        array $expectedContents,
-        array $notExpectedContents,
-        ApiKey $apiKey,
+        string $expectedOutput,
+        ShortUrl $shortUrl,
     ): void {
-        $this->shortUrlService->expects($this->once())->method('listShortUrls')->with(
-            ShortUrlsParams::emptyInstance(),
-        )->willReturn(new Paginator(new ArrayAdapter([
-            ShortUrl::create(ShortUrlCreation::fromRawData([
-                'longUrl' => 'foo.com',
-                'tags' => ['foo', 'bar', 'baz'],
-                'apiKey' => $apiKey,
-            ])),
-        ])));
+        $this->shortUrlService
+            ->expects($this->once())
+            ->method('listShortUrls')
+            ->with(
+                new ShortUrlsParams(),
+            )
+            ->willReturn(new Paginator(new ArrayAdapter([
+                ShortUrlWithDeps::fromShortUrl($shortUrl),
+            ])));
 
         $this->commandTester->setInputs(['y']);
         $this->commandTester->execute($input);
         $output = $this->commandTester->getDisplay();
 
-        if (count($expectedContents) === 0 && count($notExpectedContents) === 0) {
-            self::fail('No expectations were run');
-        }
-
-        foreach ($expectedContents as $column) {
-            self::assertStringContainsString($column, $output);
-        }
-        foreach ($notExpectedContents as $column) {
-            self::assertStringNotContainsString($column, $output);
-        }
+        self::assertStringContainsString($expectedOutput, $output);
     }
 
-    public function provideOptionalFlags(): iterable
+    public static function provideOptionalFlags(): iterable
     {
-        $apiKey = ApiKey::fromMeta(ApiKeyMeta::withName('my api key'));
-        $key = $apiKey->toString();
+        $shortUrl = ShortUrl::create(new ShortUrlCreation(
+            longUrl: 'https://foo.com',
+            apiKey: ApiKey::fromMeta(ApiKeyMeta::fromParams(name: 'my api key')),
+            tags: ['foo', 'bar', 'baz'],
+        ));
+        $shortCode = $shortUrl->shortCode;
+        $created = $shortUrl->dateCreated->toAtomString();
 
         yield 'tags only' => [
             ['--show-tags' => true],
-            ['| Tags    ', '| foo, bar, baz'],
-            ['| API Key    ', '| API Key Name |', $key, '| my api key'],
-            $apiKey,
+            <<<OUTPUT
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+
+                | Short Code | Title | Short URL   | Long URL        | Date created              | Visits count | Tags          |
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+
+                | {$shortCode}      |       | http:/{$shortCode} | https://foo.com | {$created} | 0            | foo, bar, baz |
+                +------------+-------+-------------+-------------- Page 1 of 1 ------------------+--------------+---------------+
+                OUTPUT,
+            $shortUrl,
+        ];
+        yield 'domain only' => [
+            ['--show-domain' => true],
+            <<<OUTPUT
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------+
+                | Short Code | Title | Short URL   | Long URL        | Date created              | Visits count | Domain  |
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------+
+                | {$shortCode}      |       | http:/{$shortCode} | https://foo.com | {$created} | 0            | DEFAULT |
+                +------------+-------+-------------+----------- Page 1 of 1 ---------------------+--------------+---------+
+                OUTPUT,
+            $shortUrl,
         ];
         yield 'api key only' => [
             ['--show-api-key' => true],
-            ['| API Key    ', $key],
-            ['| Tags    ', '| foo, bar, baz', '| API Key Name |', '| my api key'],
-            $apiKey,
-        ];
-        yield 'api key name only' => [
-            ['--show-api-key-name' => true],
-            ['| API Key Name |', '| my api key'],
-            ['| Tags    ', '| foo, bar, baz', '| API Key    ', $key],
-            $apiKey,
+            <<<OUTPUT
+                +------------+-------+-------------+-----------------+---------------------------+--------------+--------------+
+                | Short Code | Title | Short URL   | Long URL        | Date created              | Visits count | API Key Name |
+                +------------+-------+-------------+-----------------+---------------------------+--------------+--------------+
+                | {$shortCode}      |       | http:/{$shortCode} | https://foo.com | {$created} | 0            | my api key   |
+                +------------+-------+-------------+------------- Page 1 of 1 -------------------+--------------+--------------+
+                OUTPUT,
+            $shortUrl,
         ];
         yield 'tags and api key' => [
             ['--show-tags' => true, '--show-api-key' => true],
-            ['| API Key    ', '| Tags    ', '| foo, bar, baz', $key],
-            ['| API Key Name |', '| my api key'],
-            $apiKey,
+            <<<OUTPUT
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+--------------+
+                | Short Code | Title | Short URL   | Long URL        | Date created              | Visits count | Tags          | API Key Name |
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+--------------+
+                | {$shortCode}      |       | http:/{$shortCode} | https://foo.com | {$created} | 0            | foo, bar, baz | my api key   |
+                +------------+-------+-------------+-----------------+--- Page 1 of 1 -----------+--------------+---------------+--------------+
+                OUTPUT,
+            $shortUrl,
+        ];
+        yield 'tags and domain' => [
+            ['--show-tags' => true, '--show-domain' => true],
+            <<<OUTPUT
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+---------+
+                | Short Code | Title | Short URL   | Long URL        | Date created              | Visits count | Tags          | Domain  |
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+---------+
+                | {$shortCode}      |       | http:/{$shortCode} | https://foo.com | {$created} | 0            | foo, bar, baz | DEFAULT |
+                +------------+-------+-------------+-----------------+- Page 1 of 1 -------------+--------------+---------------+---------+
+                OUTPUT,
+            $shortUrl,
         ];
         yield 'all' => [
-            ['--show-tags' => true, '--show-api-key' => true, '--show-api-key-name' => true],
-            ['| API Key    ', '| Tags    ', '| API Key Name |', '| foo, bar, baz', $key, '| my api key'],
-            [],
-            $apiKey,
+            ['--show-tags' => true, '--show-domain' => true, '--show-api-key' => true],
+            <<<OUTPUT
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+---------+--------------+
+                | Short Code | Title | Short URL   | Long URL        | Date created              | Visits count | Tags          | Domain  | API Key Name |
+                +------------+-------+-------------+-----------------+---------------------------+--------------+---------------+---------+--------------+
+                | {$shortCode}      |       | http:/{$shortCode} | https://foo.com | {$created} | 0            | foo, bar, baz | DEFAULT | my api key   |
+                +------------+-------+-------------+-----------------+-------- Page 1 of 1 ------+--------------+---------------+---------+--------------+
+                OUTPUT,
+            $shortUrl,
         ];
     }
 
     /**
-     * @test
-     * @dataProvider provideArgs
+     * @param positive-int|null $page
      */
+    #[Test, DataProvider('provideArgs')]
     public function serviceIsInvokedWithProvidedArgs(
         array $commandArgs,
-        ?int $page,
-        ?string $searchTerm,
-        array $tags,
-        string $tagsMode,
-        ?string $startDate = null,
-        ?string $endDate = null,
+        int|null $page,
+        string|null $searchTerm,
+        array|null $tags,
+        TagsMode $tagsMode,
+        string|null $startDate = null,
+        string|null $endDate = null,
+        array|null $excludeTags = null,
+        TagsMode $excludeTagsMode = TagsMode::ANY,
+        string|null $apiKeyName = null,
     ): void {
-        $this->shortUrlService->expects($this->once())->method('listShortUrls')->with(ShortUrlsParams::fromRawData([
-            'page' => $page,
+        $expectedData = [
+            'page' => $page ?? 1,
             'searchTerm' => $searchTerm,
-            'tags' => $tags,
             'tagsMode' => $tagsMode,
             'startDate' => $startDate !== null ? Chronos::parse($startDate)->toAtomString() : null,
             'endDate' => $endDate !== null ? Chronos::parse($endDate)->toAtomString() : null,
-        ]))->willReturn(new Paginator(new ArrayAdapter([])));
+            'excludeTagsMode' => $excludeTagsMode,
+            'apiKeyName' => $apiKeyName,
+        ];
+
+        if ($tags !== null) {
+            $expectedData['tags'] = $tags;
+        }
+        if ($excludeTags !== null) {
+            $expectedData['excludeTags'] = $excludeTags;
+        }
+
+        $this->shortUrlService
+            ->expects($this->once())
+            ->method('listShortUrls')
+            ->with(new ShortUrlsParams(
+                ...$expectedData,
+            ))
+            ->willReturn(new Paginator(new ArrayAdapter([])));
 
         $this->commandTester->setInputs(['n']);
         $this->commandTester->execute($commandArgs);
     }
 
-    public function provideArgs(): iterable
+    public static function provideArgs(): iterable
     {
-        yield [[], 1, null, [], TagsMode::ANY->value];
-        yield [['--page' => $page = 3], $page, null, [], TagsMode::ANY->value];
-        yield [['--including-all-tags' => true], 1, null, [], TagsMode::ALL->value];
-        yield [['--search-term' => $searchTerm = 'search this'], 1, $searchTerm, [], TagsMode::ANY->value];
+        yield [[], 1, null, [], TagsMode::ANY];
+        yield [['--page' => $page = 3], $page, null, [], TagsMode::ANY];
+        yield [['--tags-all' => true, '--tag' => ['foo']], 1, null, ['foo'], TagsMode::ALL];
+        yield [['--search-term' => $searchTerm = 'search this'], 1, $searchTerm, [], TagsMode::ANY];
         yield [
-            ['--page' => $page = 3, '--search-term' => $searchTerm = 'search this', '--tags' => $tags = 'foo,bar'],
+            ['--page' => $page = 3, '--search-term' => $searchTerm = 'search this', '--tag' => $tags = ['foo', 'bar']],
             $page,
             $searchTerm,
-            explode(',', $tags),
-            TagsMode::ANY->value,
+            $tags,
+            TagsMode::ANY,
         ];
         yield [
             ['--start-date' => $startDate = '2019-01-01'],
             1,
             null,
             [],
-            TagsMode::ANY->value,
+            TagsMode::ANY,
             $startDate,
         ];
         yield [
@@ -226,7 +286,7 @@ class ListShortUrlsCommandTest extends TestCase
             1,
             null,
             [],
-            TagsMode::ANY->value,
+            TagsMode::ANY,
             null,
             $endDate,
         ];
@@ -235,48 +295,68 @@ class ListShortUrlsCommandTest extends TestCase
             1,
             null,
             [],
-            TagsMode::ANY->value,
+            TagsMode::ANY,
             $startDate,
             $endDate,
         ];
+        yield [
+            ['--exclude-tag' => ['foo', 'bar'], '--exclude-tags-all' => true],
+            1,
+            null,
+            null,
+            TagsMode::ANY,
+            null,
+            null,
+            ['foo', 'bar'],
+            TagsMode::ALL,
+        ];
+        yield [
+            ['--api-key-name' => 'foo'],
+            1,
+            null,
+            [],
+            TagsMode::ANY,
+            null,
+            null,
+            [],
+            TagsMode::ANY,
+            'foo',
+        ];
     }
 
-    /**
-     * @test
-     * @dataProvider provideOrderBy
-     */
-    public function orderByIsProperlyComputed(array $commandArgs, ?string $expectedOrderBy): void
+    #[Test, DataProvider('provideOrderBy')]
+    public function orderByIsProperlyComputed(array $commandArgs, string|null $expectedOrderBy): void
     {
-        $this->shortUrlService->expects($this->once())->method('listShortUrls')->with(ShortUrlsParams::fromRawData([
-            'orderBy' => $expectedOrderBy,
-        ]))->willReturn(new Paginator(new ArrayAdapter([])));
+        $this->shortUrlService
+            ->expects($this->once())
+            ->method('listShortUrls')
+            ->with(new ShortUrlsParams(
+                orderBy: Ordering::fromOptionalString($expectedOrderBy),
+            ))
+            ->willReturn(new Paginator(new ArrayAdapter([])));
 
         $this->commandTester->setInputs(['n']);
         $this->commandTester->execute($commandArgs);
     }
 
-    public function provideOrderBy(): iterable
+    public static function provideOrderBy(): iterable
     {
         yield [[], null];
         yield [['--order-by' => 'visits'], 'visits'];
-        yield [['--order-by' => 'longUrl,ASC'], 'longUrl-ASC'];
-        yield [['--order-by' => 'shortCode,DESC'], 'shortCode-DESC'];
         yield [['--order-by' => 'title-DESC'], 'title-DESC'];
     }
 
-    /** @test */
+    #[Test]
     public function requestingAllElementsWillSetItemsPerPage(): void
     {
-        $this->shortUrlService->expects($this->once())->method('listShortUrls')->with(ShortUrlsParams::fromRawData([
-            'page' => 1,
-            'searchTerm' => null,
-            'tags' => [],
-            'tagsMode' => TagsMode::ANY->value,
-            'startDate' => null,
-            'endDate' => null,
-            'orderBy' => null,
-            'itemsPerPage' => Paginator::ALL_ITEMS,
-        ]))->willReturn(new Paginator(new ArrayAdapter([])));
+        $this->shortUrlService
+            ->expects($this->once())
+            ->method('listShortUrls')
+            ->with(new ShortUrlsParams(
+                itemsPerPage: Paginator::ALL_ITEMS,
+                tagsMode: TagsMode::ANY,
+            ))
+            ->willReturn(new Paginator(new ArrayAdapter([])));
 
         $this->commandTester->execute(['--all' => true]);
     }

@@ -10,15 +10,18 @@ use Shlinkio\Shlink\Core\BotIp\Entity\BotIpRange;
 use Shlinkio\Shlink\Core\BotIp\Model\BotIpSource;
 
 use function is_string;
-use function Shlinkio\Shlink\Core\normalizeOptionalDate;
+use function Shlinkio\Shlink\Common\normalizeOptionalDate;
 
 /** @extends EntitySpecificationRepository<BotIpRange> */
 class BotIpRangeRepository extends EntitySpecificationRepository implements BotIpRangeRepositoryInterface
 {
     public function findAllCidrsBySource(): array
     {
-        $rows = $this->createQueryBuilder('r')
+        /** @var array<array{ip: string, source: string}> $rows */
+        $rows = $this
+            ->createQueryBuilder('r')
             ->select('r.ip', 'r.source')
+            ->orderBy('r.id', 'ASC')
             ->getQuery()
             ->getArrayResult();
 
@@ -33,7 +36,7 @@ class BotIpRangeRepository extends EntitySpecificationRepository implements BotI
     public function findBySource(BotIpSource $source): array
     {
         /** @var BotIpRange[] $ranges */
-        $ranges = $this->findBy(['source' => $source->value]);
+        $ranges = $this->findBy(['source' => $source->value], ['id' => 'ASC']);
 
         $rangesByIp = [];
         foreach ($ranges as $range) {
@@ -43,9 +46,10 @@ class BotIpRangeRepository extends EntitySpecificationRepository implements BotI
         return $rangesByIp;
     }
 
-    public function findLastSeenAt(BotIpSource $source): ?Chronos
+    public function findLastSeenAt(BotIpSource $source): Chronos|null
     {
-        $lastSeenAt = $this->createQueryBuilder('r')
+        $lastSeenAt = $this
+            ->createQueryBuilder('r')
             ->select('MAX(r.updatedAt)')
             ->where('r.source = :source')
             ->setParameter('source', $source->value)

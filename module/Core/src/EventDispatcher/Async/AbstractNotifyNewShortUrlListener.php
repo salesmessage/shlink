@@ -7,8 +7,10 @@ namespace Shlinkio\Shlink\Core\EventDispatcher\Async;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Shlinkio\Shlink\Common\UpdatePublishing\PublishingHelperInterface;
+use Shlinkio\Shlink\Core\Config\Options\RealTimeUpdatesOptions;
 use Shlinkio\Shlink\Core\EventDispatcher\Event\ShortUrlCreated;
 use Shlinkio\Shlink\Core\EventDispatcher\PublishingUpdatesGeneratorInterface;
+use Shlinkio\Shlink\Core\EventDispatcher\Topic;
 use Shlinkio\Shlink\Core\ShortUrl\Entity\ShortUrl;
 use Throwable;
 
@@ -19,12 +21,12 @@ abstract class AbstractNotifyNewShortUrlListener extends AbstractAsyncListener
         private readonly PublishingUpdatesGeneratorInterface $updatesGenerator,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
-    ) {
-    }
+        private readonly RealTimeUpdatesOptions $realTimeUpdatesOptions,
+    ) {}
 
     public function __invoke(ShortUrlCreated $shortUrlCreated): void
     {
-        if (! $this->isEnabled()) {
+        if (!$this->isEnabled()) {
             return;
         }
 
@@ -37,6 +39,10 @@ abstract class AbstractNotifyNewShortUrlListener extends AbstractAsyncListener
                 'Tried to notify {name} for new short URL with id "{shortUrlId}", but it does not exist.',
                 ['shortUrlId' => $shortUrlId, 'name' => $name],
             );
+            return;
+        }
+
+        if (!$this->realTimeUpdatesOptions->isTopicEnabled(Topic::NEW_SHORT_URL)) {
             return;
         }
 

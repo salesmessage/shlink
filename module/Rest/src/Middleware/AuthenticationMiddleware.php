@@ -17,18 +17,17 @@ use Shlinkio\Shlink\Rest\Exception\MissingAuthenticationException;
 use Shlinkio\Shlink\Rest\Exception\VerifyAuthenticationException;
 use Shlinkio\Shlink\Rest\Service\ApiKeyServiceInterface;
 
-use function Functional\contains;
+use function Shlinkio\Shlink\Core\ArrayUtils\contains;
 
 class AuthenticationMiddleware implements MiddlewareInterface, StatusCodeInterface, RequestMethodInterface
 {
-    public const API_KEY_HEADER = 'X-Api-Key';
+    public const string API_KEY_HEADER = 'X-Api-Key';
 
     public function __construct(
-        private ApiKeyServiceInterface $apiKeyService,
-        private array $routesWithoutApiKey,
-        private array $routesWithQueryApiKey,
-    ) {
-    }
+        private readonly ApiKeyServiceInterface $apiKeyService,
+        private readonly array $routesWithoutApiKey,
+        private readonly array $routesWithQueryApiKey,
+    ) {}
 
     public function process(Request $request, RequestHandlerInterface $handler): Response
     {
@@ -38,14 +37,14 @@ class AuthenticationMiddleware implements MiddlewareInterface, StatusCodeInterfa
             $routeResult === null
             || $routeResult->isFailure()
             || $request->getMethod() === self::METHOD_OPTIONS
-            || contains($this->routesWithoutApiKey, $routeResult->getMatchedRouteName())
+            || contains($routeResult->getMatchedRouteName(), $this->routesWithoutApiKey)
         ) {
             return $handler->handle($request);
         }
 
         $apiKey = $this->getApiKeyFromRequest($request, $routeResult);
         $result = $this->apiKeyService->check($apiKey);
-        if (! $result->isValid()) {
+        if (!$result->isValid()) {
             throw VerifyAuthenticationException::forInvalidApiKey();
         }
 
@@ -61,8 +60,8 @@ class AuthenticationMiddleware implements MiddlewareInterface, StatusCodeInterfa
     {
         $routeName = $routeResult->getMatchedRouteName();
         $query = $request->getQueryParams();
-        $isRouteWithApiKeyInQuery = contains($this->routesWithQueryApiKey, $routeName);
-        $apiKey = $isRouteWithApiKeyInQuery ? ($query['apiKey'] ?? '') : $request->getHeaderLine(self::API_KEY_HEADER);
+        $isRouteWithApiKeyInQuery = contains($routeName, $this->routesWithQueryApiKey);
+        $apiKey = $isRouteWithApiKeyInQuery ? $query['apiKey'] ?? '' : $request->getHeaderLine(self::API_KEY_HEADER);
 
         if (empty($apiKey)) {
             throw $isRouteWithApiKeyInQuery

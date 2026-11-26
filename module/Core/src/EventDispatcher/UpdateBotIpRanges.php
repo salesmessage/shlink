@@ -7,30 +7,29 @@ namespace Shlinkio\Shlink\Core\EventDispatcher;
 use Cake\Chronos\Chronos;
 use Psr\Log\LoggerInterface;
 use Shlinkio\Shlink\Core\BotIp\BotIpRangesUpdaterInterface;
-use Shlinkio\Shlink\Core\Options\BotIpOptions;
+use Shlinkio\Shlink\Core\Config\Options\BotIpOptions;
 use Throwable;
 
 use function implode;
 
 /**
- * Refreshes the Google bot IP ranges the way UpdateGeoLiteDb refreshes the GeoLite2 db: on a visit, when the list
- * is stale. Each worker checks at most once per interval, so a visit does not cost a query.
+ * Refreshes the Google bot IP ranges the way UpdateGeoLiteDb refreshes the GeoLite2 db: on a visit, when the list is
+ * stale. Each worker checks at most once per interval, so a visit does not cost a query.
  */
 class UpdateBotIpRanges
 {
-    private ?int $lastCheckAt = null;
+    private int|null $lastCheckAt = null;
 
     public function __construct(
         private readonly BotIpRangesUpdaterInterface $updater,
         private readonly BotIpOptions $options,
         private readonly LoggerInterface $logger,
-    ) {
-    }
+    ) {}
 
     public function __invoke(): void
     {
         $now = Chronos::now()->getTimestamp();
-        if ($this->lastCheckAt !== null && $now - $this->lastCheckAt < $this->options->checkIntervalSeconds) {
+        if ($this->lastCheckAt !== null && ($now - $this->lastCheckAt) < $this->options->checkIntervalSeconds) {
             return;
         }
         $this->lastCheckAt = $now;
@@ -42,7 +41,7 @@ class UpdateBotIpRanges
             return;
         }
 
-        if (! $result->updated) {
+        if (!$result->updated) {
             return;
         }
 
@@ -50,7 +49,7 @@ class UpdateBotIpRanges
             'added' => $result->added,
             'refreshed' => $result->refreshed,
         ]);
-        if (! empty($result->failedSources)) {
+        if ($result->failedSources !== []) {
             $this->logger->warning('Bot IP ranges not downloaded from {sources}.', [
                 'sources' => implode(', ', $result->failedSources),
             ]);

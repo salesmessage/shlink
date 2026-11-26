@@ -18,15 +18,15 @@ use function strtolower;
 
 class CreateShortUrlContentNegotiationMiddleware implements MiddlewareInterface
 {
-    private const PLAIN_TEXT = 'text';
-    private const JSON = 'json';
+    private const string PLAIN_TEXT = 'text';
+    private const string JSON = 'json';
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $response = $handler->handle($request);
 
         // If the response is not JSON, return it as is
-        if (! $response instanceof JsonResponse) {
+        if (!$response instanceof JsonResponse) {
             return $response;
         }
 
@@ -41,7 +41,7 @@ class CreateShortUrlContentNegotiationMiddleware implements MiddlewareInterface
         }
 
         // If requested, return a plain text response containing the short URL only
-        $resp = (new Response())->withHeader('Content-Type', 'text/plain');
+        $resp = new Response()->withHeader('Content-Type', 'text/plain');
         $body = $resp->getBody();
         $body->write($this->determineBody($response));
         $body->rewind();
@@ -50,7 +50,7 @@ class CreateShortUrlContentNegotiationMiddleware implements MiddlewareInterface
 
     private function determineAcceptTypeFromQuery(array $query): string
     {
-        if (! isset($query['format'])) {
+        if (!isset($query['format'])) {
             return self::JSON;
         }
 

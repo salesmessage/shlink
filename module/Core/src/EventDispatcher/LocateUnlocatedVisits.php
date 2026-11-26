@@ -13,13 +13,12 @@ use Shlinkio\Shlink\Core\Visit\Geolocation\VisitLocatorInterface;
 use Shlinkio\Shlink\Core\Visit\Geolocation\VisitToLocationHelperInterface;
 use Shlinkio\Shlink\IpGeolocation\Model\Location;
 
-class LocateUnlocatedVisits implements VisitGeolocationHelperInterface
+readonly class LocateUnlocatedVisits implements VisitGeolocationHelperInterface
 {
     public function __construct(
-        private readonly VisitLocatorInterface $locator,
-        private readonly VisitToLocationHelperInterface $visitToLocation,
-    ) {
-    }
+        private VisitLocatorInterface $locator,
+        private VisitToLocationHelperInterface $visitToLocation,
+    ) {}
 
     public function __invoke(GeoLiteDbCreated $event): void
     {
@@ -34,7 +33,5 @@ class LocateUnlocatedVisits implements VisitGeolocationHelperInterface
         return $this->visitToLocation->resolveVisitLocation($visit);
     }
 
-    public function onVisitLocated(VisitLocation $visitLocation, Visit $visit): void
-    {
-    }
+    public function onVisitLocated(VisitLocation $visitLocation, Visit $visit): void {}
 }

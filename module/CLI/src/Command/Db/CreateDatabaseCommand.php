@@ -5,88 +5,94 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\CLI\Command\Db;
 
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Platforms\SqlitePlatform;
-use Shlinkio\Shlink\CLI\Util\ExitCodes;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
+use Shlinkio\Shlink\CLI\Command\Util\CommandUtils;
+use Shlinkio\Shlink\CLI\Command\Util\LockConfig;
 use Shlinkio\Shlink\CLI\Util\ProcessRunnerInterface;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Lock\LockFactory;
-use Symfony\Component\Process\PhpExecutableFinder;
+use Throwable;
 
-use function Functional\contains;
-use function Functional\filter;
+use function array_map;
+use function Shlinkio\Shlink\Core\ArrayUtils\contains;
+use function Shlinkio\Shlink\Core\ArrayUtils\some;
 
-use const Shlinkio\Shlink\MIGRATIONS_TABLE;
-
-class CreateDatabaseCommand extends AbstractDatabaseCommand
+#[AsCommand(
+    name: CreateDatabaseCommand::NAME,
+    description: 'Creates the database needed for shlink to work. It will do nothing if the database already exists',
+    hidden: true,
+)]
+class CreateDatabaseCommand extends Command
 {
-    public const NAME = 'db:create';
-    public const DOCTRINE_SCRIPT = 'bin/doctrine';
-    public const DOCTRINE_CREATE_SCHEMA_COMMAND = 'orm:schema-tool:create';
+    private readonly Connection $regularConn;
+
+    public const string NAME = 'db:create';
+    public const string SCRIPT = 'bin/doctrine';
+    public const string COMMAND = 'orm:schema-tool:create';
 
     public function __construct(
-        LockFactory $locker,
-        ProcessRunnerInterface $processRunner,
-        PhpExecutableFinder $phpFinder,
-        private Connection $regularConn,
-        private Connection $noDbNameConn,
+        private readonly LockFactory $locker,
+        private readonly ProcessRunnerInterface $processRunner,
+        private readonly EntityManagerInterface $em,
+        private readonly Connection $noDbNameConn,
     ) {
-        parent::__construct($locker, $processRunner, $phpFinder);
+        $this->regularConn = $this->em->getConnection();
+        parent::__construct();
     }
 
-    protected function configure(): void
+    public function __invoke(SymfonyStyle $io): int
     {
-        $this
-            ->setName(self::NAME)
-            ->setHidden()
-            ->setDescription(
-                'Creates the database needed for shlink to work. It will do nothing if the database already exists',
-            );
+        return CommandUtils::executeWithLock(
+            $this->locker,
+            LockConfig::blocking(self::NAME),
+            $io,
+            fn () => $this->executeCommand($io),
+        );
     }
 
-    protected function lockedExecute(InputInterface $input, OutputInterface $output): int
+    private function executeCommand(SymfonyStyle $io): int
     {
-        $io = new SymfonyStyle($input, $output);
-
-        $this->checkDbExists();
-
-        if ($this->schemaExists()) {
+        if ($this->databaseTablesExist()) {
             $io->success('Database already exists. Run "db:migrate" command to make sure it is up to date.');
-            return ExitCodes::EXIT_SUCCESS;
+            return self::SUCCESS;
         }
 
         // Create database
         $io->writeln('<fg=blue>Creating database tables...</>');
-        $this->runPhpCommand($output, [self::DOCTRINE_SCRIPT, self::DOCTRINE_CREATE_SCHEMA_COMMAND]);
+        $this->processRunner->run($io, [self::SCRIPT, self::COMMAND, '--no-interaction']);
         $io->success('Database properly created!');
 
-        return ExitCodes::EXIT_SUCCESS;
+        return self::SUCCESS;
     }
 
-    private function checkDbExists(): void
+    private function databaseTablesExist(): bool
     {
-        if ($this->regularConn->getDriver()->getDatabasePlatform() instanceof SqlitePlatform) {
-            return;
-        }
+        $existingTables = $this->ensureDatabaseExistsAndGetTables();
+        $allMetadata = $this->em->getMetadataFactory()->getAllMetadata();
+        $shlinkTables = array_map(static fn (ClassMetadata $metadata) => $metadata->getTableName(), $allMetadata);
 
-        // In order to create the new database, we have to use a connection where the dbname was not set.
-        // Otherwise, it will fail to connect and will not be able to create the new database
-        $schemaManager = $this->noDbNameConn->createSchemaManager();
-        $databases = $schemaManager->listDatabases();
-        $shlinkDatabase = $this->regularConn->getParams()['dbname'] ?? null;
-
-        if ($shlinkDatabase !== null && ! contains($databases, $shlinkDatabase)) {
-            $schemaManager->createDatabase($shlinkDatabase);
-        }
-    }
-
-    private function schemaExists(): bool
-    {
         // If at least one of the shlink tables exist, we will consider the database exists somehow.
-        // We exclude the migrations table, in case db:migrate was run first by mistake.
-        // Any other inconsistency will be taken care by the migrations.
-        $schemaManager = $this->regularConn->createSchemaManager();
-        return ! empty(filter($schemaManager->listTableNames(), fn (string $table) => $table !== MIGRATIONS_TABLE));
+        // Any other inconsistency will be taken care of by the migrations.
+        return some($shlinkTables, static fn (string $shlinkTable) => contains($shlinkTable, $existingTables));
+    }
+
+    private function ensureDatabaseExistsAndGetTables(): array
+    {
+        try {
+            // Trying to list tables requires opening a connection to configured database.
+            // If it fails, it means it does not exist yet.
+            return $this->regularConn->createSchemaManager()->listTableNames();
+        } catch (Throwable) {
+            // We cannot use getDatabase() to get the database name here, because then the driver will try to connect.
+            // Instead, we read from the raw params.
+            $shlinkDatabase = $this->regularConn->getParams()['dbname'] ?? '';
+            // Create the database using a connection where the dbname was not set.
+            $this->noDbNameConn->createSchemaManager()->createDatabase($shlinkDatabase);
+
+            return [];
+        }
     }
 }

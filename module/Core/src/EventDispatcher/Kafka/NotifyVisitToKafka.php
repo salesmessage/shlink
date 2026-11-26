@@ -9,12 +9,15 @@ use Psr\Log\LoggerInterface;
 use Salesmessage\Streaming\Message\MessageFactoryInterface;
 use Salesmessage\Streaming\Producer\ProducerInterface;
 use Salesmessage\Streaming\Route\RouteInterface;
-use Shlinkio\Shlink\Core\EventDispatcher\Event\VisitLocated;
+use Shlinkio\Shlink\Core\EventDispatcher\Event\UrlVisited;
 use Shlinkio\Shlink\Core\EventDispatcher\PublishingUpdatesGeneratorInterface;
 use Shlinkio\Shlink\Core\Visit\Entity\Visit;
 use Throwable;
 
-/** spec:click-tracking: ADR-002 */
+/**
+ * Publishes each visit to a short URL to Kafka as the `shortener.click_recorded` event core consumes.
+ * spec:click-tracking: ADR-002
+ */
 final class NotifyVisitToKafka
 {
     public const EVENT_KEY = 'shortener.click_recorded';
@@ -29,16 +32,15 @@ final class NotifyVisitToKafka
         private readonly LoggerInterface $logger,
         private readonly DeliveryFailures $deliveryFailures,
         private readonly bool $enabled,
-    ) {
-    }
+    ) {}
 
-    public function __invoke(VisitLocated $visitLocated): void
+    public function __invoke(UrlVisited $urlVisited): void
     {
-        if (! $this->enabled) {
+        if (!$this->enabled) {
             return;
         }
 
-        $visitId = $visitLocated->visitId;
+        $visitId = $urlVisited->visitId;
         $visit = $this->em->find(Visit::class, $visitId);
 
         if ($visit === null) {
@@ -53,7 +55,7 @@ final class NotifyVisitToKafka
             return;
         }
 
-        $shortCode = $visit->getShortUrl()?->getShortCode();
+        $shortCode = $visit->shortUrl?->shortCode;
         $payload = $this->updatesGenerator->newVisitUpdate($visit)->payload;
 
         $this->deliveryFailures->reset();

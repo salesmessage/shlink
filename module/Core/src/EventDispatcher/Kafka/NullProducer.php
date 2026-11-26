@@ -10,11 +10,7 @@ use Salesmessage\Streaming\Route\RouteInterface;
 
 final class NullProducer implements ProducerInterface
 {
-    public function send(RouteInterface $route, MessageInterface $message): void
-    {
-    }
+    public function send(RouteInterface $route, MessageInterface $message): void {}
 
-    public function flush(): void
-    {
-    }
+    public function flush(): void {}
 }

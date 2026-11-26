@@ -13,11 +13,10 @@
 .travis.yml export-ignore
 build.sh export-ignore
 CHANGELOG.md export-ignore
-docker-compose.override.yml.dist export-ignore
 docker-compose.yml export-ignore
 indocker export-ignore
-phpcs.xml export-ignore
+mago.toml export-ignore
+mago-analyze-baseline.toml export-ignore
 phpunit.xml.dist export-ignore
 phpunit-api.xml export-ignore
 phpunit-db.xml export-ignore
-phpstan.neon

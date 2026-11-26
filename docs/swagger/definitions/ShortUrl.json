@@ -5,14 +5,14 @@
         "shortUrl",
         "longUrl",
         "dateCreated",
-        "visitsCount",
         "visitsSummary",
         "tags",
         "meta",
         "domain",
         "title",
         "crawlable",
-        "forwardQuery"
+        "forwardQuery",
+        "hasRedirectRules"
     ],
     "properties": {
         "shortCode": {
@@ -32,11 +32,6 @@
             "format": "date-time",
             "description": "The date in which the short URL was created in ISO format."
         },
-        "visitsCount": {
-            "deprecated": true,
-            "type": "integer",
-            "description": "**[DEPRECATED]** Use `visitsSummary.total` instead."
-        },
         "visitsSummary": {
             "$ref": "./VisitsSummary.json"
         },
@@ -51,13 +46,11 @@
             "$ref": "./ShortUrlMeta.json"
         },
         "domain": {
-            "type": "string",
-            "nullable": true,
+            "type": ["string", "null"],
             "description": "The domain in which the short URL was created. Null if it belongs to default domain."
         },
         "title": {
-            "type": "string",
-            "nullable": true,
+            "type": ["string", "null"],
             "description": "A descriptive title of the short URL."
         },
         "crawlable": {
@@ -67,6 +60,10 @@
         "forwardQuery": {
             "type": "boolean",
             "description": "Tells if this URL will forward the query params to the long URL when visited, as explained in [the docs](https://shlink.io/documentation/some-features/#query-params-forwarding)."
+        },
+        "hasRedirectRules": {
+            "type": "boolean",
+            "description": "Whether this short URL has redirect rules attached to it or not. Use [this endpoint](https://api-spec.shlink.io/#/Redirect%20rules/listShortUrlRedirectRules) to get the actual list of rules."
         }
     }
 }

@@ -1,10 +1,10 @@
-FROM php:8.4.28-fpm-alpine3.23
+FROM php:8.5-fpm-alpine3.24
 MAINTAINER Alejandro Celaya <alejandro@alejandrocelaya.com>
 
-ENV APCU_VERSION 5.1.28
-ENV PDO_SQLSRV_VERSION 5.13.3
-ENV MS_ODBC_DOWNLOAD 'b/9/f/b9f3cce4-3925-46d4-9f46-da08869c6486'
-ENV MS_ODBC_SQL_VERSION 18_18.1.1.1
+ENV APCU_VERSION='5.1.24'
+ENV PDO_SQLSRV_VERSION='5.13.0'
+ENV MS_ODBC_DOWNLOAD='fae28b9a-d880-42fd-9b98-d779f0fdd77f'
+ENV MS_ODBC_SQL_VERSION='18_18.5.1.1'
 
 RUN apk update
 
@@ -22,38 +22,26 @@ RUN docker-php-ext-install pdo_sqlite
 RUN apk add --no-cache icu-dev
 RUN docker-php-ext-install intl
 
-RUN apk add --no-cache libzip-dev zlib-dev
-RUN docker-php-ext-install zip
-
-RUN apk add --no-cache libpng-dev
-RUN docker-php-ext-install gd
-
 RUN apk add --no-cache postgresql-dev
 RUN docker-php-ext-install pdo_pgsql
 
-RUN apk add --no-cache librdkafka librdkafka-dev
-
-RUN apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS linux-headers && \
+COPY --from=ghcr.io/php/pie:bin /pie /usr/bin/pie
+RUN apk add --no-cache libzip-dev zlib-dev && \
+    apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS linux-headers && \
     docker-php-ext-install sockets && \
+    pie install xdebug/xdebug && \
+    pie install pecl/zip && \
+    pie install apcu/apcu && \
     apk del .phpize-deps
 RUN docker-php-ext-install bcmath
 
-# Install APCu extension
-ADD https://pecl.php.net/get/apcu-$APCU_VERSION.tgz /tmp/apcu.tar.gz
-RUN mkdir -p /usr/src/php/ext/apcu \
-  && tar xf /tmp/apcu.tar.gz -C /usr/src/php/ext/apcu --strip-components=1 \
-  && docker-php-ext-configure apcu \
-  && docker-php-ext-install apcu \
-  && rm /tmp/apcu.tar.gz \
-  && rm /usr/local/etc/php/conf.d/docker-php-ext-apcu.ini \
-  && echo extension=apcu.so > /usr/local/etc/php/conf.d/20-php-ext-apcu.ini
-
-# Install pcov and sqlsrv driver
-RUN wget https://download.microsoft.com/download/${MS_ODBC_DOWNLOAD}/msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
+# Install sqlsrv driver
+RUN apk add --update linux-headers && \
+    wget https://download.microsoft.com/download/${MS_ODBC_DOWNLOAD}/msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
     apk add --allow-untrusted msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk && \
     apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS unixodbc-dev && \
-    pecl install pdo_sqlsrv-${PDO_SQLSRV_VERSION} pcov rdkafka && \
-    docker-php-ext-enable pdo_sqlsrv pcov rdkafka && \
+    pecl install pdo_sqlsrv-${PDO_SQLSRV_VERSION} && \
+    docker-php-ext-enable pdo_sqlsrv && \
     apk del .phpize-deps && \
     rm msodbcsql${MS_ODBC_SQL_VERSION}-1_amd64.apk
 

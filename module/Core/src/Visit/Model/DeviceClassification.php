@@ -6,9 +6,7 @@ namespace Shlinkio\Shlink\Core\Visit\Model;
 
 final class DeviceClassification
 {
-    private function __construct(public readonly DeviceClass $class, public readonly ?string $detail)
-    {
-    }
+    private function __construct(public readonly DeviceClass $class, public readonly string|null $detail) {}
 
     public static function mobile(): self
     {

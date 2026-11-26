@@ -5,96 +5,113 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\Core\ShortUrl\Model;
 
 use Cake\Chronos\Chronos;
-use Shlinkio\Shlink\Core\Exception\ValidationException;
+use DateTimeInterface;
+use Shlinkio\Shlink\Common\ObjectMapper\HostAndPortConverter;
+use Shlinkio\Shlink\Common\ObjectMapper\LooseUriConverter;
+use Shlinkio\Shlink\Common\ObjectMapper\MappingError;
+use Shlinkio\Shlink\Common\ObjectMapper\SubstringConverter;
+use Shlinkio\Shlink\Common\ObjectMapper\TagsConverter;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\TitleResolutionModelInterface;
-use Shlinkio\Shlink\Core\ShortUrl\Model\Validation\ShortUrlInputFilter;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
-use function Shlinkio\Shlink\Core\getNonEmptyOptionalValueFromInputFilter;
-use function Shlinkio\Shlink\Core\getOptionalBoolFromInputFilter;
-use function Shlinkio\Shlink\Core\getOptionalIntFromInputFilter;
-use function Shlinkio\Shlink\Core\normalizeOptionalDate;
+use function Shlinkio\Shlink\Common\normalizeOptionalDate;
+use function str_replace;
+use function strpbrk;
+use function strtolower;
+use function trim;
 
 use const Shlinkio\Shlink\DEFAULT_SHORT_CODES_LENGTH;
 
-final class ShortUrlCreation implements TitleResolutionModelInterface
+final readonly class ShortUrlCreation implements TitleResolutionModelInterface
 {
-    private string $longUrl;
-    private ?Chronos $validSince = null;
-    private ?Chronos $validUntil = null;
-    private ?string $customSlug = null;
-    private ?int $maxVisits = null;
-    private ?bool $findIfExists = null;
-    private ?string $domain = null;
-    private int $shortCodeLength = 5;
-    private bool $validateUrl = false;
-    private ?ApiKey $apiKey = null;
-    private array $tags = [];
-    private ?string $title = null;
-    private bool $titleWasAutoResolved = false;
-    private bool $crawlable = false;
-    private bool $forwardQuery = true;
-
-    private function __construct()
-    {
-    }
-
-    public static function createEmpty(): self
-    {
-        $instance = new self();
-        $instance->longUrl = '';
-
-        return $instance;
-    }
+    public Chronos|null $validSince;
+    public Chronos|null $validUntil;
+    public string|null $customSlug;
+    public string|null $pathPrefix;
 
     /**
-     * @throws ValidationException
+     * @param string[] $tags
+     * @param int<4, max> $shortCodeLength
      */
-    public static function fromRawData(array $data): self
-    {
-        $instance = new self();
-        $instance->validateAndInit($data);
+    public function __construct(
+        #[LooseUriConverter] public string $longUrl,
+        DateTimeInterface|string|null $validSince = null,
+        DateTimeInterface|string|null $validUntil = null,
+        public ShortUrlMode $shortUrlMode = ShortUrlMode::STRICT,
+        private bool $multiSegmentSlugsEnabled = false,
+        string|null $customSlug = null,
+        string|null $pathPrefix = null,
+        public int|null $maxVisits = null,
+        public bool $findIfExists = false,
+        #[HostAndPortConverter] public string|null $domain = null,
+        public int $shortCodeLength = DEFAULT_SHORT_CODES_LENGTH,
+        public ApiKey|null $apiKey = null,
+        #[TagsConverter] public array $tags = [],
+        #[SubstringConverter(512)] public string|null $title = null,
+        public bool $titleWasAutoResolved = false,
+        public bool $crawlable = false,
+        public bool $forwardQuery = true,
+    ) {
+        $this->validSince = normalizeOptionalDate($validSince);
+        $this->validUntil = normalizeOptionalDate($validUntil);
 
-        return $instance;
+        $this->customSlug = $this->filterAndValidateOptionsRelatedValue($customSlug);
+        $this->pathPrefix = $this->filterAndValidateOptionsRelatedValue($pathPrefix);
     }
 
-    /**
-     * @throws ValidationException
-     */
-    private function validateAndInit(array $data): void
+    private function filterAndValidateOptionsRelatedValue(string|null $value): string|null
     {
-        $inputFilter = ShortUrlInputFilter::withRequiredLongUrl($data);
-        if (! $inputFilter->isValid()) {
-            throw ValidationException::fromInputFilter($inputFilter);
+        if ($value === null) {
+            return null;
         }
 
-        $this->longUrl = $inputFilter->getValue(ShortUrlInputFilter::LONG_URL);
-        $this->validSince = normalizeOptionalDate($inputFilter->getValue(ShortUrlInputFilter::VALID_SINCE));
-        $this->validUntil = normalizeOptionalDate($inputFilter->getValue(ShortUrlInputFilter::VALID_UNTIL));
-        $this->customSlug = $inputFilter->getValue(ShortUrlInputFilter::CUSTOM_SLUG);
-        $this->maxVisits = getOptionalIntFromInputFilter($inputFilter, ShortUrlInputFilter::MAX_VISITS);
-        $this->findIfExists = $inputFilter->getValue(ShortUrlInputFilter::FIND_IF_EXISTS);
-        $this->validateUrl = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::VALIDATE_URL) ?? false;
-        $this->domain = getNonEmptyOptionalValueFromInputFilter($inputFilter, ShortUrlInputFilter::DOMAIN);
-        $this->shortCodeLength = getOptionalIntFromInputFilter(
-            $inputFilter,
-            ShortUrlInputFilter::SHORT_CODE_LENGTH,
-        ) ?? DEFAULT_SHORT_CODES_LENGTH;
-        $this->apiKey = $inputFilter->getValue(ShortUrlInputFilter::API_KEY);
-        $this->tags = $inputFilter->getValue(ShortUrlInputFilter::TAGS);
-        $this->title = $inputFilter->getValue(ShortUrlInputFilter::TITLE);
-        $this->crawlable = $inputFilter->getValue(ShortUrlInputFilter::CRAWLABLE);
-        $this->forwardQuery = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::FORWARD_QUERY) ?? true;
+        $isLooseMode = $this->shortUrlMode === ShortUrlMode::LOOSE;
+        $value = $isLooseMode ? strtolower($value) : $value;
+        $value = $this->multiSegmentSlugsEnabled
+            ? trim(str_replace(' ', '-', $value), '/')
+            : str_replace([' ', '/'], '-', $value);
+
+        // URL gen-delimiter reserved characters, except `/`: https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
+        $reservedChars = ':?#[]@';
+        if (!$this->multiSegmentSlugsEnabled) {
+            // Slashes should only be allowed if multi-segment slugs are enabled
+            $reservedChars .= '/';
+        }
+
+        if (strpbrk($value, $reservedChars) !== false) {
+            throw MappingError::withBody('URL-reserved characters cannot be used in a custom slug or path prefix');
+        }
+
+        return $value;
     }
 
-    public function getLongUrl(): string
+    public function withResolvedTitle(string $title): static
     {
-        return $this->longUrl;
-    }
+        // TODO Use clone with once PHP 8.4 is no longer supported
+        // return clone($this, [
+        //     'title' => $title,
+        //     'titleWasAutoResolved' => true,
+        // ]);
 
-    public function getValidSince(): ?Chronos
-    {
-        return $this->validSince;
+        return new self(
+            longUrl: $this->longUrl,
+            validSince: $this->validSince,
+            validUntil: $this->validUntil,
+            shortUrlMode: $this->shortUrlMode,
+            multiSegmentSlugsEnabled: $this->multiSegmentSlugsEnabled,
+            customSlug: $this->customSlug,
+            pathPrefix: $this->pathPrefix,
+            maxVisits: $this->maxVisits,
+            findIfExists: $this->findIfExists,
+            domain: $this->domain,
+            shortCodeLength: $this->shortCodeLength,
+            apiKey: $this->apiKey,
+            tags: $this->tags,
+            title: $title,
+            titleWasAutoResolved: true,
+            crawlable: $this->crawlable,
+            forwardQuery: $this->forwardQuery,
+        );
     }
 
     public function hasValidSince(): bool
@@ -102,19 +119,9 @@ final class ShortUrlCreation implements TitleResolutionModelInterface
         return $this->validSince !== null;
     }
 
-    public function getValidUntil(): ?Chronos
-    {
-        return $this->validUntil;
-    }
-
     public function hasValidUntil(): bool
     {
         return $this->validUntil !== null;
-    }
-
-    public function getCustomSlug(): ?string
-    {
-        return $this->customSlug;
     }
 
     public function hasCustomSlug(): bool
@@ -122,19 +129,9 @@ final class ShortUrlCreation implements TitleResolutionModelInterface
         return $this->customSlug !== null;
     }
 
-    public function getMaxVisits(): ?int
-    {
-        return $this->maxVisits;
-    }
-
     public function hasMaxVisits(): bool
     {
         return $this->maxVisits !== null;
-    }
-
-    public function findIfExists(): bool
-    {
-        return (bool) $this->findIfExists;
     }
 
     public function hasDomain(): bool
@@ -142,65 +139,8 @@ final class ShortUrlCreation implements TitleResolutionModelInterface
         return $this->domain !== null;
     }
 
-    public function getDomain(): ?string
-    {
-        return $this->domain;
-    }
-
-    public function getShortCodeLength(): int
-    {
-        return $this->shortCodeLength;
-    }
-
-    public function doValidateUrl(): bool
-    {
-        return $this->validateUrl;
-    }
-
-    public function getApiKey(): ?ApiKey
-    {
-        return $this->apiKey;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getTags(): array
-    {
-        return $this->tags;
-    }
-
-    public function getTitle(): ?string
-    {
-        return $this->title;
-    }
-
     public function hasTitle(): bool
     {
         return $this->title !== null;
-    }
-
-    public function titleWasAutoResolved(): bool
-    {
-        return $this->titleWasAutoResolved;
-    }
-
-    public function withResolvedTitle(string $title): self
-    {
-        $copy = clone $this;
-        $copy->title = $title;
-        $copy->titleWasAutoResolved = true;
-
-        return $copy;
-    }
-
-    public function isCrawlable(): bool
-    {
-        return $this->crawlable;
-    }
-
-    public function forwardQuery(): bool
-    {
-        return $this->forwardQuery;
     }
 }

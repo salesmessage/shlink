@@ -1,11 +1,12 @@
 {
     "get": {
         "operationId": "shortenUrl",
+        "deprecated": true,
         "tags": [
             "Short URLs"
         ],
         "summary": "Create a short URL",
-        "description": "Creates a short URL in a single API call. Useful for third party integrations.",
+        "description": "**[Deprecated]** Use [Create short URL](#/Short%20URLs/createShortUrl) instead",
         "parameters": [
             {
                 "$ref": "../parameters/version.json"
@@ -52,7 +53,7 @@
                         },
                         "example": {
                             "longUrl": "https://github.com/shlinkio/shlink",
-                            "shortUrl": "https://doma.in/abc123",
+                            "shortUrl": "https://s.test/abc123",
                             "shortCode": "abc123",
                             "dateCreated": "2016-08-21T20:34:16+02:00",
                             "visitsSummary": {
@@ -71,57 +72,16 @@
                             },
                             "domain": null,
                             "title": null,
-                            "crawlable": false
+                            "crawlable": false,
+                            "forwardQuery": true,
+                            "hasRedirectRules": false
                         }
                     },
                     "text/plain": {
                         "schema": {
                             "type": "string"
                         },
-                        "example": "https://doma.in/abc123"
-                    }
-                }
-            },
-            "400": {
-                "description": "The long URL was not provided or is invalid.",
-                "content": {
-                    "application/problem+json": {
-                        "schema": {
-                            "$ref": "../definitions/Error.json"
-                        },
-                        "examples": {
-                            "API v3 and newer": {
-                                "value": {
-                                    "title": "Invalid URL",
-                                    "type": "https://shlink.io/api/error/invalid-url",
-                                    "detail": "Provided URL foo is invalid. Try with a different one.",
-                                    "status": 400,
-                                    "url": "https://invalid-url.com"
-                                }
-                            },
-                            "Previous to API v3": {
-                                "value": {
-                                    "title": "Invalid URL",
-                                    "type": "INVALID_URL",
-                                    "detail": "Provided URL foo is invalid. Try with a different one.",
-                                    "status": 400,
-                                    "url": "https://invalid-url.com"
-                                }
-                            }
-                        }
-                    },
-                    "text/plain": {
-                        "schema": {
-                            "type": "string"
-                        },
-                        "examples": {
-                            "API v3 and newer": {
-                                "value": "https://shlink.io/api/error/invalid-url"
-                            },
-                            "Previous to API v3": {
-                                "value": "INVALID_URL"
-                            }
-                        }
+                        "example": "https://s.test/abc123"
                     }
                 }
             },

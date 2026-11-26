@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\Core\EventDispatcher;
 
 use Doctrine\DBAL\Connection;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -15,17 +17,14 @@ use Throwable;
 
 class CloseDbConnectionEventListenerTest extends TestCase
 {
-    private MockObject & ReopeningEntityManagerInterface $em;
+    private MockObject&ReopeningEntityManagerInterface $em;
 
     protected function setUp(): void
     {
         $this->em = $this->createMock(ReopeningEntityManagerInterface::class);
     }
 
-    /**
-     * @test
-     * @dataProvider provideWrapped
-     */
+    #[Test, DataProvider('provideWrapped')]
     public function connectionIsOpenedBeforeAndClosedAfter(callable $wrapped, bool &$wrappedWasCalled): void
     {
         $conn = $this->createMock(Connection::class);
@@ -38,7 +37,7 @@ class CloseDbConnectionEventListenerTest extends TestCase
         $eventListener = new CloseDbConnectionEventListener($this->em, $wrapped);
 
         try {
-            ($eventListener)(new stdClass());
+            $eventListener(new stdClass());
         } catch (Throwable) {
             // Ignore exceptions
         }
@@ -46,7 +45,7 @@ class CloseDbConnectionEventListenerTest extends TestCase
         self::assertTrue($wrappedWasCalled);
     }
 
-    public function provideWrapped(): iterable
+    public static function provideWrapped(): iterable
     {
         yield 'does not throw exception' => (static function (): array {
             $wrappedWasCalled = false;

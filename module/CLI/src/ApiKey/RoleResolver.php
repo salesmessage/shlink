@@ -4,39 +4,40 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\CLI\ApiKey;
 
+use Shlinkio\Shlink\CLI\Command\Api\Input\ApiKeyInput;
 use Shlinkio\Shlink\CLI\Exception\InvalidRoleConfigException;
+use Shlinkio\Shlink\Core\Config\Options\UrlShortenerOptions;
 use Shlinkio\Shlink\Core\Domain\DomainServiceInterface;
 use Shlinkio\Shlink\Rest\ApiKey\Model\RoleDefinition;
-use Shlinkio\Shlink\Rest\ApiKey\Role;
-use Symfony\Component\Console\Input\InputInterface;
 
-use function is_string;
-
-class RoleResolver implements RoleResolverInterface
+/** @deprecated API key roles are deprecated */
+readonly class RoleResolver implements RoleResolverInterface
 {
-    public function __construct(private DomainServiceInterface $domainService, private string $defaultDomain)
-    {
-    }
+    public function __construct(
+        private DomainServiceInterface $domainService,
+        private UrlShortenerOptions $urlShortenerOptions,
+    ) {}
 
-    public function determineRoles(InputInterface $input): array
+    public function determineRoles(ApiKeyInput $input): iterable
     {
-        $domainAuthority = $input->getOption(Role::DOMAIN_SPECIFIC->paramName());
-        $author = $input->getOption(Role::AUTHORED_SHORT_URLS->paramName());
+        $domainAuthority = $input->domain;
+        $author = $input->authorOnly;
+        $noOrphanVisits = $input->noOrphanVisits;
 
-        $roleDefinitions = [];
         if ($author) {
-            $roleDefinitions[] = RoleDefinition::forAuthoredShortUrls();
+            yield RoleDefinition::forAuthoredShortUrls();
         }
-        if (is_string($domainAuthority)) {
-            $roleDefinitions[] = $this->resolveRoleForAuthority($domainAuthority);
+        if ($domainAuthority !== null) {
+            yield $this->resolveRoleForAuthority($domainAuthority);
         }
-
-        return $roleDefinitions;
+        if ($noOrphanVisits) {
+            yield RoleDefinition::forNoOrphanVisits();
+        }
     }
 
     private function resolveRoleForAuthority(string $domainAuthority): RoleDefinition
     {
-        if ($domainAuthority === $this->defaultDomain) {
+        if ($domainAuthority === $this->urlShortenerOptions->defaultDomain) {
             throw InvalidRoleConfigException::forDomainOnlyWithDefaultDomain();
         }
 

@@ -17,28 +17,24 @@ use function Shlinkio\Shlink\Core\isCrawler;
  * One-off pass over past visits to short URLs, flagging as potential bots the ones today's rules would flag. Stored
  * addresses keep only their /24 network, so the address rule works on that network: it overlaps a Google range, and
  * those networks belong to Google as a whole.
- * The flag is only ever set, never cleared.
+ * The flag is only ever set, never cleared. The visit counts of short URLs (visitsSummary) are not recalculated.
  */
-class VisitBotReclassifier
+readonly class VisitBotReclassifier implements VisitBotReclassifierInterface
 {
-    private const RULE_USER_AGENT = 'user_agent';
-    private const RULE_GOOGLE_NETWORK = 'google_network';
+    private const string RULE_USER_AGENT = 'user_agent';
+    private const string RULE_GOOGLE_NETWORK = 'google_network';
 
     public function __construct(
-        private readonly BotReclassificationQueryInterface $query,
-        private readonly BotIpMatcherInterface $matcher,
-    ) {
-    }
+        private BotReclassificationQueryInterface $query,
+        private BotIpMatcherInterface $matcher,
+    ) {}
 
-    /**
-     * @param callable(ReclassificationResult): void|null $onBatch
-     */
     public function reclassify(
         Chronos $since,
         int $fromId,
         int $batchSize,
         bool $dryRun,
-        ?callable $onBatch = null,
+        callable|null $onBatch = null,
     ): ReclassificationResult {
         $result = new ReclassificationResult();
         // Start at the first visit since the date: walking older ids first would read the whole history
@@ -53,17 +49,18 @@ class VisitBotReclassifier
                 $result->scanned++;
 
                 $rule = $this->matchingRule($visit['userAgent'] ?? '', $visit['remoteAddr'] ?? null);
-                match ($rule) {
-                    self::RULE_USER_AGENT => $result->byUserAgent++,
-                    self::RULE_GOOGLE_NETWORK => $result->byGoogleNetwork++,
-                    default => null,
-                };
+                if ($rule === self::RULE_USER_AGENT) {
+                    $result->byUserAgent++;
+                } elseif ($rule === self::RULE_GOOGLE_NETWORK) {
+                    $result->byGoogleNetwork++;
+                }
+
                 if ($rule !== null) {
                     $botIds[] = $visit['id'];
                 }
             }
 
-            if (! $dryRun && ! empty($botIds)) {
+            if (!$dryRun && $botIds !== []) {
                 $this->query->flagAsPotentialBots($botIds);
             }
 
@@ -75,7 +72,7 @@ class VisitBotReclassifier
         return $result;
     }
 
-    private function matchingRule(string $userAgent, ?string $remoteAddr): ?string
+    private function matchingRule(string $userAgent, string|null $remoteAddr): string|null
     {
         if (isCrawler($userAgent)) {
             return self::RULE_USER_AGENT;

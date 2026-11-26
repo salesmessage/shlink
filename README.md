@@ -2,12 +2,12 @@
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/shlinkio/shlink/ci.yml?branch=develop&logo=github&style=flat-square)](https://github.com/shlinkio/shlink/actions/workflows/ci.yml?query=workflow%3A%22Continuous+integration%22)
 [![Code Coverage](https://img.shields.io/codecov/c/gh/shlinkio/shlink/develop?style=flat-square)](https://app.codecov.io/gh/shlinkio/shlink)
-[![Infection MSI](https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Fshlinkio%2Fshlink%2Fdevelop)](https://dashboard.stryker-mutator.io/reports/github.com/shlinkio/shlink/develop)
 [![Latest Stable Version](https://img.shields.io/github/release/shlinkio/shlink.svg?style=flat-square)](https://packagist.org/packages/shlinkio/shlink)
 [![Docker pulls](https://img.shields.io/docker/pulls/shlinkio/shlink.svg?logo=docker&style=flat-square)](https://hub.docker.com/r/shlinkio/shlink/)
 [![License](https://img.shields.io/github/license/shlinkio/shlink.svg?style=flat-square)](https://github.com/shlinkio/shlink/blob/main/LICENSE)
-[![Twitter](https://img.shields.io/twitter/follow/shlinkio?color=blue&label=follow&logo=twitter&style=flat-square)](https://twitter.com/shlinkio)
+
 [![Mastodon](https://img.shields.io/mastodon/follow/109329425426175098?color=%236364ff&domain=https%3A%2F%2Ffosstodon.org&label=follow&logo=mastodon&logoColor=white&style=flat-square)](https://fosstodon.org/@shlinkio)
+[![Bluesky](https://img.shields.io/badge/follow-shlinkio-0285FF.svg?style=flat-square&logo=bluesky&logoColor=white)](https://bsky.app/profile/shlink.io)
 [![Paypal donate](https://img.shields.io/badge/Donate-paypal-blue.svg?style=flat-square&logo=paypal&colorA=aaaaaa)](https://slnk.to/donate)
 
 A PHP-based self-hosted URL shortener that can be used to serve shortened URLs under your own domain.
@@ -20,7 +20,6 @@ A PHP-based self-hosted URL shortener that can be used to serve shortened URLs u
     - [Download](#download)
     - [Configure](#configure)
 - [Using shlink](#using-shlink)
-- [Testing](#testing)
 - [Contributing](#contributing)
 
 ## Full documentation
@@ -33,18 +32,16 @@ You can learn how to use the official docker image by reading [the docs](https:/
 
 The idea is that you can just generate a container using the image and provide the custom config via env vars.
 
-## Self hosted
+## Self-hosted
 
 First, make sure the host where you are going to run shlink fulfills these requirements:
 
-* PHP 8.1 or 8.2
+* PHP 8.4 or 8.5
 * The next PHP extensions: json, curl, pdo, intl, gd and gmp/bcmath.
-    * apcu extension is recommended if you don't plan to use openswoole.
-    * xml extension is required if you want to generate QR codes in svg format.
+    * apcu extension is recommended if you don't plan to use RoadRunner.
     * sockets and bcmath extensions are required if you want to integrate with a RabbitMQ instance.
 * MySQL, MariaDB, PostgreSQL, MicrosoftSQL or SQLite.
     * You will also need the corresponding pdo variation for the database you are planning to use: `pdo_mysql`, `pdo_pgsql`, `pdo_sqlsrv` or `pdo_sqlite`.
-* The [openswoole](https://openswoole.com/) PHP extension (if you plan to serve Shlink with openswoole) or the web server of your choice with PHP integration (like Apache or Nginx).
 
 ### Download
 
@@ -54,7 +51,7 @@ In order to run Shlink, you will need a built version of the project. There are 
 
     The easiest way to install shlink is by using one of the pre-bundled distributable packages.
 
-    Go to the [latest version](https://github.com/shlinkio/shlink/releases/latest) and download the `shlink*_dist.zip` file that suits your needs. You will find one for every supported PHP version and with/without openswoole integration.
+    Go to the [latest version](https://github.com/shlinkio/shlink/releases/latest) and download the `shlink*_dist.zip` file that suits your needs. You will find one for every supported PHP version.
 
     Finally, decompress the file in the location of your choice.
 
@@ -97,45 +94,15 @@ Once shlink is installed, there are two main ways to interact with it:
 
 Both the API and CLI allow you to do mostly the same operations, except for API key management, which can be done from the command line interface only.
 
-## Testing
-
-This fork runs the unit suite only: `module/Core/test`, `module/Rest/test` and `module/CLI/test`, driven by `phpunit.xml.dist`. The upstream api, database and cli suites have been removed, along with their configs and composer scripts.
-
-Tests run in a throwaway `sm-php-cli` container through the `./indocker_test` helper. Nothing else needs to be running - no `docker-compose`, no database.
-
-```bash
-./indocker_test                                    # composer test:unit (default target)
-./indocker_test --filter DeviceClassifierTest      # bare args go to phpunit
-./indocker_test module/Core/test/Visit/XTest.php   # a single file
-./indocker_test unit --filter Foo --stop-on-failure
-./indocker_test unit:pretty                        # HTML coverage report
-./indocker_test infect                             # unit tests + mutation testing
-./indocker_test cs                                 # or cs:fix, stan, swagger
-./indocker_test ci                                 # everything CI runs
-./indocker_test --raw 'composer dump-autoload'     # any command in the container
-./indocker_test --help
-```
-
-| Target | Composer script |
-|---|---|
-| `unit` (default) | `test:unit` |
-| `unit:ci` | `test:unit:ci` |
-| `unit:pretty` | `test:unit:pretty` |
-| `infect` | `infect:test:unit` |
-| `cs`, `cs:fix`, `stan`, `swagger` | `cs`, `cs:fix`, `stan`, `swagger:validate` |
-| `ci` | `ci` |
-
-Anything after the target is forwarded verbatim to the underlying command, so phpunit flags such as `--filter`, `--stop-on-failure` and file paths work. An argument that is not a known target is treated as a phpunit argument for the unit suite. `ci` and `infect` fan out internally and ignore extra arguments.
-
-Options, which must come before the target: `-p/--php VER` selects the image tag, `-n/--network NAME` attaches a docker network, `-e/--env-file FILE` binds an env file, `-r/--raw 'CMD'` runs an arbitrary command.
-
-The container runs as your uid/gid, so nothing it writes (`build/`, `.phpunit.result.cache`) ends up root-owned. `APP_ENV`, `GENERATE_COVERAGE`, `XDEBUG_MODE` and `COMPOSER_PROCESS_TIMEOUT` are forwarded from your shell when set, and `.env.test.local` or `.env.test` are bound automatically if present.
-
-Running the suite directly with `./indocker composer test:unit` still works.
-
 ## Contributing
 
 If you are trying to find out how to run the project in development mode or how to provide contributions, read the [CONTRIBUTING](CONTRIBUTING.md) doc.
+
+## Powered by
+
+Thanks to [JetBrains](https://www.jetbrains.com/) for their continuous support to this project in the form of IDE licenses.
+
+![JetBrains logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)
 
 ---
 

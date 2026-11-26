@@ -7,6 +7,9 @@ namespace ShlinkioTest\Shlink\Rest\Action;
 use Cake\Chronos\Chronos;
 use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\ServerRequestFactory;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shlinkio\Shlink\Common\Mercure\JwtProviderInterface;
@@ -15,17 +18,14 @@ use Shlinkio\Shlink\Rest\Exception\MercureException;
 
 class MercureInfoActionTest extends TestCase
 {
-    private MockObject & JwtProviderInterface $provider;
+    private MockObject&JwtProviderInterface $provider;
 
     protected function setUp(): void
     {
         $this->provider = $this->createMock(JwtProviderInterface::class);
     }
 
-    /**
-     * @test
-     * @dataProvider provideNoHostConfigs
-     */
+    #[Test, DataProvider('provideNoHostConfigs')]
     public function throwsExceptionWhenConfigDoesNotHavePublicHost(array $mercureConfig): void
     {
         $this->provider->expects($this->never())->method('buildSubscriptionToken');
@@ -37,7 +37,7 @@ class MercureInfoActionTest extends TestCase
         $action->handle(ServerRequestFactory::fromGlobals());
     }
 
-    public function provideNoHostConfigs(): iterable
+    public static function provideNoHostConfigs(): iterable
     {
         yield 'host not defined' => [[]];
         yield 'host is null' => [['public_hub_url' => null]];
@@ -49,11 +49,8 @@ class MercureInfoActionTest extends TestCase
         yield 'days defined' => [['public_hub_url' => 'http://foobar.com', 'jwt_days_duration' => 20]];
     }
 
-    /**
-     * @test
-     * @dataProvider provideDays
-     */
-    public function returnsExpectedInfoWhenEverythingIsOk(?int $days): void
+    #[Test, DataProvider('provideDays')]
+    public function returnsExpectedInfoWhenEverythingIsOk(int|null $days): void
     {
         $this->provider->expects($this->once())->method('buildSubscriptionToken')->willReturn('abc.123');
 
@@ -76,9 +73,23 @@ class MercureInfoActionTest extends TestCase
         );
     }
 
-    public function provideDays(): iterable
+    public static function provideDays(): iterable
     {
         yield 'days not defined' => [null];
         yield 'days defined' => [10];
+    }
+
+    #[Test, AllowMockObjectsWithoutExpectations]
+    public function getRouteDefReturnsExpectedData(): void
+    {
+        self::assertEquals(
+            [
+                'name' => MercureInfoAction::class,
+                'middleware' => [MercureInfoAction::class],
+                'path' => '/mercure-info',
+                'allowed_methods' => ['GET'],
+            ],
+            MercureInfoAction::getRouteDef(),
+        );
     }
 }
