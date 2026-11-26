@@ -17,6 +17,8 @@ final class Version20230211171904 extends AbstractMigration
 {
     public function up(Schema $schema): void
     {
-        $this->write('visits (short_url_id, potential_bot) is indexed by Version20251230163550');
+        $this->write(
+            'No index built here (D-032): visits (short_url_id, potential_bot) comes from Version20251230163550',
+        );
     }
 }
