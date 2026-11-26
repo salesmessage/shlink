@@ -20,7 +20,7 @@ final class Version20240318084804 extends AbstractMigration
     {
         $this->addSql(
             'INSERT INTO short_url_visits_counts (short_url_id, potential_bot, count) '
-            . 'SELECT short_url_id, potential_bot, COUNT(id) FROM visits WHERE short_url_id IS NOT NULL '
+            . 'SELECT short_url_id, potential_bot, COUNT(*) FROM visits WHERE short_url_id IS NOT NULL '
             . 'GROUP BY short_url_id, potential_bot',
         );
     }
