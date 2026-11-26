@@ -8,54 +8,20 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
 /**
- * Create initial entries in the short_url_visits_counts table for existing visits
+ * Create initial entries in the short_url_visits_counts table for existing visits.
+ *
+ * Upstream runs two COUNT queries per short URL. This fork builds the same rows (one per short URL and potential_bot
+ * value with visits, slot_id 1 by default) in one pass over visits, since production has ~13M short URLs and ~29M
+ * visits (SWR-25201, D-031). The version name stays, so a later merge of upstream does not run the backfill again.
  */
 final class Version20240318084804 extends AbstractMigration
 {
     public function up(Schema $schema): void
     {
-        $qb = $this->connection->createQueryBuilder();
-        $result = $qb
-            ->select('id')
-            ->from('short_urls')
-            ->executeQuery();
-
-        while ($shortUrlId = $result->fetchOne()) {
-            $visitsQb = $this->connection->createQueryBuilder();
-            $visitsQb
-                ->select('COUNT(id)')
-                ->from('visits')
-                ->where($visitsQb->expr()->eq('short_url_id', ':short_url_id'))
-                ->andWhere($visitsQb->expr()->eq('potential_bot', ':potential_bot'))
-                ->setParameter('short_url_id', $shortUrlId);
-
-            $botsCount = $visitsQb->setParameter('potential_bot', '1')->executeQuery()->fetchOne();
-            $nonBotsCount = $visitsQb->setParameter('potential_bot', '0')->executeQuery()->fetchOne();
-
-            if ($botsCount > 0) {
-                $this->insertCount($shortUrlId, $botsCount, potentialBot: true);
-            }
-            if ($nonBotsCount > 0) {
-                $this->insertCount($shortUrlId, $nonBotsCount, potentialBot: false);
-            }
-        }
-    }
-
-    private function insertCount(string|int $shortUrlId, string|int $count, bool $potentialBot): void
-    {
-        $this->connection
-            ->createQueryBuilder()
-            ->insert('short_url_visits_counts')
-            ->values([
-                'short_url_id' => ':short_url_id',
-                'count' => ':count',
-                'potential_bot' => ':potential_bot',
-            ])
-            ->setParameters([
-                'short_url_id' => $shortUrlId,
-                'count' => $count,
-                'potential_bot' => $potentialBot ? '1' : '0',
-            ])
-            ->executeStatement();
+        $this->addSql(
+            'INSERT INTO short_url_visits_counts (short_url_id, potential_bot, count) '
+            . 'SELECT short_url_id, potential_bot, COUNT(id) FROM visits WHERE short_url_id IS NOT NULL '
+            . 'GROUP BY short_url_id, potential_bot',
+        );
     }
 }
