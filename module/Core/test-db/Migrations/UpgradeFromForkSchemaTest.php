@@ -135,10 +135,11 @@ class UpgradeFromForkSchemaTest extends DatabaseTestCase
         foreach (['short_url_visits_counts', 'orphan_visits_counts', 'short_url_redirect_rules'] as $table) {
             self::assertTrue($schema->hasTable($table), $table);
         }
-        // The index of the fork stays: upstream builds its own under another name and drops it again
+        // The index of the fork stays, upstream's copy of it is never built (D-032), and the new one is on potential_bot
         $visits = $schema->getTable('visits');
         self::assertTrue($visits->hasIndex('IDX_visits_short_url_id_potential_bot'));
         self::assertFalse($visits->hasIndex('IDX_visits_potential_bot'));
+        self::assertSame(['potential_bot'], $visits->getIndex('visits_potential_bot_IDX')->getColumns());
         self::assertSame(
             [['device_type' => 'mobile', 'device_type_detail' => 'iphone']],
             $this->conn->fetchAllAssociative('SELECT device_type, device_type_detail FROM visits WHERE id = 1'),

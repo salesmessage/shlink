@@ -4,24 +4,19 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
-use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
+/**
+ * Upstream builds IDX_visits_potential_bot on visits (short_url_id, potential_bot) here, and Version20230303164233
+ * drops it again. This fork already indexes these columns (idx_visits_short_url_id_potential_bot, Version20251230163550),
+ * so building a copy only to drop it would cost a whole index build on visits in the migration window
+ * (SWR-25201, D-032). The version name stays, so a later merge of upstream does not run it again.
+ */
 final class Version20230211171904 extends AbstractMigration
 {
-    private const string INDEX_NAME = 'IDX_visits_potential_bot';
-
     public function up(Schema $schema): void
     {
-        $visits = $schema->getTable('visits');
-        $this->skipIf($visits->hasIndex(self::INDEX_NAME));
-
-        $visits->addIndex(['short_url_id', 'potential_bot'], self::INDEX_NAME);
-    }
-
-    public function isTransactional(): bool
-    {
-        return !$this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+        $this->write('visits (short_url_id, potential_bot) is indexed by Version20251230163550');
     }
 }
